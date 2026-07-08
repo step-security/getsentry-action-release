@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-8988-4f7v-96qf"
+reason = "@opentelemetry/core (via @sentry/node) - vuln is in inbound baggage-header parsing; this action only makes outbound calls, never a server, so the vulnerable path is unreachable."
