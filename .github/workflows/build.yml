@@ -1,0 +1,144 @@
+name: Build and Test
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build and push image to ttl.sh
+        run: |
+          docker build -t ttl.sh/getsentry-action-release:24h -f Dockerfile .
+          docker push ttl.sh/getsentry-action-release:24h
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install
+        run: yarn install
+
+      - name: Check format
+        run: yarn format-check
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Build
+        run: yarn build
+
+  #############
+  # E2E Tests
+  #############
+
+  test-mock-release:
+    needs: docker-build
+    strategy:
+      matrix:
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    name: Mock a release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mock creating a Sentry release
+        uses: ./
+        env:
+          MOCK: true
+        with:
+          environment: production
+
+  test-mock-release-working-directory:
+    needs: docker-build
+    strategy:
+      matrix:
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    name: Mock a release in a different working directory
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout directory we'll be running from
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          path: main/
+
+      - name: Checkout directory we'll be testing
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          path: test/
+
+      - name: Mock creating a Sentry release in a different directory
+        uses: ./main
+        env:
+          MOCK: true
+        with:
+          environment: production
+          working_directory: ./test
+
+  test-node-version-preserved:
+    needs: docker-build
+    strategy:
+      matrix:
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        node-version: ['20.x', '22.x', '24.x']
+    runs-on: ${{ matrix.os }}
+    name: Test Node version preserved on ${{ matrix.os }} with Node ${{ matrix.node-version }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Print Node Version (Before)
+        id: node_before
+        shell: bash
+        run: |
+          VERSION=$(node --version)
+          echo "Node version before: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Mock creating a Sentry release
+        uses: ./
+        env:
+          MOCK: true
+        with:
+          environment: production
+
+      - name: Print Node Version (After)
+        shell: bash
+        run: |
+          VERSION_AFTER=$(node --version)
+          echo "Node version after: $VERSION_AFTER"
+          echo "Expected: ${{ steps.node_before.outputs.VERSION }}"
+          if [ "$VERSION_AFTER" != "${{ steps.node_before.outputs.VERSION }}" ]; then
+            echo "ERROR: Node version changed from ${{ steps.node_before.outputs.VERSION }} to $VERSION_AFTER"
+            exit 1
+          fi
+
+          echo "SUCCESS: Node version preserved"
