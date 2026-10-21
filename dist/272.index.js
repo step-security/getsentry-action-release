@@ -31,7 +31,7 @@ exports.execAsync = util.promisify(child_process.exec);
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getMachineId = void 0;
 const execAsync_1 = __webpack_require__(31223);
-const api_1 = __webpack_require__(63914);
+const api_1 = __webpack_require__(91408);
 async function getMachineId() {
     try {
         const result = await (0, execAsync_1.execAsync)('ioreg -rd1 -c "IOPlatformExpertDevice"');

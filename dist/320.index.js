@@ -13,7 +13,7 @@ exports.modules = {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getMachineId = void 0;
-const api_1 = __webpack_require__(63914);
+const api_1 = __webpack_require__(91408);
 async function getMachineId() {
     api_1.diag.debug('could not read machine-id: unsupported platform');
     return undefined;

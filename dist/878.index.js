@@ -32,7 +32,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getMachineId = void 0;
 const fs_1 = __webpack_require__(79896);
 const execAsync_1 = __webpack_require__(31223);
-const api_1 = __webpack_require__(63914);
+const api_1 = __webpack_require__(91408);
 async function getMachineId() {
     try {
         const result = await fs_1.promises.readFile('/etc/hostid', { encoding: 'utf8' });

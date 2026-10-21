@@ -32,7 +32,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getMachineId = void 0;
 const process = __webpack_require__(932);
 const execAsync_1 = __webpack_require__(31223);
-const api_1 = __webpack_require__(63914);
+const api_1 = __webpack_require__(91408);
 async function getMachineId() {
     const args = 'QUERY HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography /v MachineGuid';
     let command = '%windir%\\System32\\REG.exe';

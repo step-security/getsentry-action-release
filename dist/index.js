@@ -1383,7 +1383,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ToolRunner = void 0;
 exports.argStringToArray = argStringToArray;
 const os = __importStar(__nccwpck_require__(70857));
-const events = __importStar(__nccwpck_require__(2053));
+const events = __importStar(__nccwpck_require__(24434));
 const child = __importStar(__nccwpck_require__(35317));
 const path = __importStar(__nccwpck_require__(16928));
 const io = __importStar(__nccwpck_require__(94994));
@@ -3767,2303 +3767,6 @@ var SeverityNumber;
 
 /***/ }),
 
-/***/ 29750:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ContextAPI = void 0;
-const NoopContextManager_1 = __nccwpck_require__(99522);
-const global_utils_1 = __nccwpck_require__(39923);
-const diag_1 = __nccwpck_require__(1230);
-const API_NAME = 'context';
-const NOOP_CONTEXT_MANAGER = new NoopContextManager_1.NoopContextManager();
-/**
- * Singleton object which represents the entry point to the OpenTelemetry Context API
- *
- * @since 1.0.0
- */
-class ContextAPI {
-    /** Empty private constructor prevents end users from constructing a new instance of the API */
-    constructor() { }
-    /** Get the singleton instance of the Context API */
-    static getInstance() {
-        if (!this._instance) {
-            this._instance = new ContextAPI();
-        }
-        return this._instance;
-    }
-    /**
-     * Set the current context manager.
-     *
-     * @returns true if the context manager was successfully registered, else false
-     */
-    setGlobalContextManager(contextManager) {
-        return (0, global_utils_1.registerGlobal)(API_NAME, contextManager, diag_1.DiagAPI.instance());
-    }
-    /**
-     * Get the currently active context
-     */
-    active() {
-        return this._getContextManager().active();
-    }
-    /**
-     * Execute a function with an active context
-     *
-     * @param context context to be active during function execution
-     * @param fn function to execute in a context
-     * @param thisArg optional receiver to be used for calling fn
-     * @param args optional arguments forwarded to fn
-     */
-    with(context, fn, thisArg, ...args) {
-        return this._getContextManager().with(context, fn, thisArg, ...args);
-    }
-    /**
-     * Bind a context to a target function or event emitter
-     *
-     * @param context context to bind to the event emitter or function. Defaults to the currently active context
-     * @param target function or event emitter to bind
-     */
-    bind(context, target) {
-        return this._getContextManager().bind(context, target);
-    }
-    _getContextManager() {
-        return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_CONTEXT_MANAGER;
-    }
-    /** Disable and remove the global context manager */
-    disable() {
-        this._getContextManager().disable();
-        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-}
-exports.ContextAPI = ContextAPI;
-//# sourceMappingURL=context.js.map
-
-/***/ }),
-
-/***/ 1230:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DiagAPI = void 0;
-const ComponentLogger_1 = __nccwpck_require__(37723);
-const logLevelLogger_1 = __nccwpck_require__(83514);
-const types_1 = __nccwpck_require__(2573);
-const global_utils_1 = __nccwpck_require__(39923);
-const API_NAME = 'diag';
-/**
- * Singleton object which represents the entry point to the OpenTelemetry internal
- * diagnostic API
- *
- * @since 1.0.0
- */
-class DiagAPI {
-    /** Get the singleton instance of the DiagAPI API */
-    static instance() {
-        if (!this._instance) {
-            this._instance = new DiagAPI();
-        }
-        return this._instance;
-    }
-    /**
-     * Private internal constructor
-     * @private
-     */
-    constructor() {
-        function _logProxy(funcName) {
-            return function (...args) {
-                const logger = (0, global_utils_1.getGlobal)('diag');
-                // shortcut if logger not set
-                if (!logger)
-                    return;
-                return logger[funcName](...args);
-            };
-        }
-        // Using self local variable for minification purposes as 'this' cannot be minified
-        const self = this;
-        // DiagAPI specific functions
-        const setLogger = (logger, optionsOrLogLevel = { logLevel: types_1.DiagLogLevel.INFO }) => {
-            var _a, _b, _c;
-            if (logger === self) {
-                // There isn't much we can do here.
-                // Logging to the console might break the user application.
-                // Try to log to self. If a logger was previously registered it will receive the log.
-                const err = new Error('Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation');
-                self.error((_a = err.stack) !== null && _a !== void 0 ? _a : err.message);
-                return false;
-            }
-            if (typeof optionsOrLogLevel === 'number') {
-                optionsOrLogLevel = {
-                    logLevel: optionsOrLogLevel,
-                };
-            }
-            const oldLogger = (0, global_utils_1.getGlobal)('diag');
-            const newLogger = (0, logLevelLogger_1.createLogLevelDiagLogger)((_b = optionsOrLogLevel.logLevel) !== null && _b !== void 0 ? _b : types_1.DiagLogLevel.INFO, logger);
-            // There already is an logger registered. We'll let it know before overwriting it.
-            if (oldLogger && !optionsOrLogLevel.suppressOverrideMessage) {
-                const stack = (_c = new Error().stack) !== null && _c !== void 0 ? _c : '<failed to generate stacktrace>';
-                oldLogger.warn(`Current logger will be overwritten from ${stack}`);
-                newLogger.warn(`Current logger will overwrite one already registered from ${stack}`);
-            }
-            return (0, global_utils_1.registerGlobal)('diag', newLogger, self, true);
-        };
-        self.setLogger = setLogger;
-        self.disable = () => {
-            (0, global_utils_1.unregisterGlobal)(API_NAME, self);
-        };
-        self.createComponentLogger = (options) => {
-            return new ComponentLogger_1.DiagComponentLogger(options);
-        };
-        self.verbose = _logProxy('verbose');
-        self.debug = _logProxy('debug');
-        self.info = _logProxy('info');
-        self.warn = _logProxy('warn');
-        self.error = _logProxy('error');
-    }
-}
-exports.DiagAPI = DiagAPI;
-//# sourceMappingURL=diag.js.map
-
-/***/ }),
-
-/***/ 18692:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.MetricsAPI = void 0;
-const NoopMeterProvider_1 = __nccwpck_require__(12896);
-const global_utils_1 = __nccwpck_require__(39923);
-const diag_1 = __nccwpck_require__(1230);
-const API_NAME = 'metrics';
-/**
- * Singleton object which represents the entry point to the OpenTelemetry Metrics API
- */
-class MetricsAPI {
-    /** Empty private constructor prevents end users from constructing a new instance of the API */
-    constructor() { }
-    /** Get the singleton instance of the Metrics API */
-    static getInstance() {
-        if (!this._instance) {
-            this._instance = new MetricsAPI();
-        }
-        return this._instance;
-    }
-    /**
-     * Set the current global meter provider.
-     * Returns true if the meter provider was successfully registered, else false.
-     */
-    setGlobalMeterProvider(provider) {
-        return (0, global_utils_1.registerGlobal)(API_NAME, provider, diag_1.DiagAPI.instance());
-    }
-    /**
-     * Returns the global meter provider.
-     */
-    getMeterProvider() {
-        return (0, global_utils_1.getGlobal)(API_NAME) || NoopMeterProvider_1.NOOP_METER_PROVIDER;
-    }
-    /**
-     * Returns a meter from the global meter provider.
-     */
-    getMeter(name, version, options) {
-        return this.getMeterProvider().getMeter(name, version, options);
-    }
-    /** Remove the global meter provider */
-    disable() {
-        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-}
-exports.MetricsAPI = MetricsAPI;
-//# sourceMappingURL=metrics.js.map
-
-/***/ }),
-
-/***/ 7:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PropagationAPI = void 0;
-const global_utils_1 = __nccwpck_require__(39923);
-const NoopTextMapPropagator_1 = __nccwpck_require__(54353);
-const TextMapPropagator_1 = __nccwpck_require__(77865);
-const context_helpers_1 = __nccwpck_require__(30052);
-const utils_1 = __nccwpck_require__(38558);
-const diag_1 = __nccwpck_require__(1230);
-const API_NAME = 'propagation';
-const NOOP_TEXT_MAP_PROPAGATOR = new NoopTextMapPropagator_1.NoopTextMapPropagator();
-/**
- * Singleton object which represents the entry point to the OpenTelemetry Propagation API
- *
- * @since 1.0.0
- */
-class PropagationAPI {
-    /** Empty private constructor prevents end users from constructing a new instance of the API */
-    constructor() {
-        this.createBaggage = utils_1.createBaggage;
-        this.getBaggage = context_helpers_1.getBaggage;
-        this.getActiveBaggage = context_helpers_1.getActiveBaggage;
-        this.setBaggage = context_helpers_1.setBaggage;
-        this.deleteBaggage = context_helpers_1.deleteBaggage;
-    }
-    /** Get the singleton instance of the Propagator API */
-    static getInstance() {
-        if (!this._instance) {
-            this._instance = new PropagationAPI();
-        }
-        return this._instance;
-    }
-    /**
-     * Set the current propagator.
-     *
-     * @returns true if the propagator was successfully registered, else false
-     */
-    setGlobalPropagator(propagator) {
-        return (0, global_utils_1.registerGlobal)(API_NAME, propagator, diag_1.DiagAPI.instance());
-    }
-    /**
-     * Inject context into a carrier to be propagated inter-process
-     *
-     * @param context Context carrying tracing data to inject
-     * @param carrier carrier to inject context into
-     * @param setter Function used to set values on the carrier
-     */
-    inject(context, carrier, setter = TextMapPropagator_1.defaultTextMapSetter) {
-        return this._getGlobalPropagator().inject(context, carrier, setter);
-    }
-    /**
-     * Extract context from a carrier
-     *
-     * @param context Context which the newly created context will inherit from
-     * @param carrier Carrier to extract context from
-     * @param getter Function used to extract keys from a carrier
-     */
-    extract(context, carrier, getter = TextMapPropagator_1.defaultTextMapGetter) {
-        return this._getGlobalPropagator().extract(context, carrier, getter);
-    }
-    /**
-     * Return a list of all fields which may be used by the propagator.
-     */
-    fields() {
-        return this._getGlobalPropagator().fields();
-    }
-    /** Remove the global propagator */
-    disable() {
-        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-    _getGlobalPropagator() {
-        return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
-    }
-}
-exports.PropagationAPI = PropagationAPI;
-//# sourceMappingURL=propagation.js.map
-
-/***/ }),
-
-/***/ 24508:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TraceAPI = void 0;
-const global_utils_1 = __nccwpck_require__(39923);
-const ProxyTracerProvider_1 = __nccwpck_require__(20312);
-const spancontext_utils_1 = __nccwpck_require__(60639);
-const context_utils_1 = __nccwpck_require__(52771);
-const diag_1 = __nccwpck_require__(1230);
-const API_NAME = 'trace';
-/**
- * Singleton object which represents the entry point to the OpenTelemetry Tracing API
- *
- * @since 1.0.0
- */
-class TraceAPI {
-    /** Empty private constructor prevents end users from constructing a new instance of the API */
-    constructor() {
-        this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider();
-        this.wrapSpanContext = spancontext_utils_1.wrapSpanContext;
-        this.isSpanContextValid = spancontext_utils_1.isSpanContextValid;
-        this.deleteSpan = context_utils_1.deleteSpan;
-        this.getSpan = context_utils_1.getSpan;
-        this.getActiveSpan = context_utils_1.getActiveSpan;
-        this.getSpanContext = context_utils_1.getSpanContext;
-        this.setSpan = context_utils_1.setSpan;
-        this.setSpanContext = context_utils_1.setSpanContext;
-    }
-    /** Get the singleton instance of the Trace API */
-    static getInstance() {
-        if (!this._instance) {
-            this._instance = new TraceAPI();
-        }
-        return this._instance;
-    }
-    /**
-     * Set the current global tracer.
-     *
-     * @returns true if the tracer provider was successfully registered, else false
-     */
-    setGlobalTracerProvider(provider) {
-        const success = (0, global_utils_1.registerGlobal)(API_NAME, this._proxyTracerProvider, diag_1.DiagAPI.instance());
-        if (success) {
-            this._proxyTracerProvider.setDelegate(provider);
-        }
-        return success;
-    }
-    /**
-     * Returns the global tracer provider.
-     */
-    getTracerProvider() {
-        return (0, global_utils_1.getGlobal)(API_NAME) || this._proxyTracerProvider;
-    }
-    /**
-     * Returns a tracer from the global tracer provider.
-     */
-    getTracer(name, version) {
-        return this.getTracerProvider().getTracer(name, version);
-    }
-    /** Remove the global tracer provider */
-    disable() {
-        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-        this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider();
-    }
-}
-exports.TraceAPI = TraceAPI;
-//# sourceMappingURL=trace.js.map
-
-/***/ }),
-
-/***/ 30052:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.deleteBaggage = exports.setBaggage = exports.getActiveBaggage = exports.getBaggage = void 0;
-const context_1 = __nccwpck_require__(29750);
-const context_2 = __nccwpck_require__(37977);
-/**
- * Baggage key
- */
-const BAGGAGE_KEY = (0, context_2.createContextKey)('OpenTelemetry Baggage Key');
-/**
- * Retrieve the current baggage from the given context
- *
- * @param {Context} Context that manage all context values
- * @returns {Baggage} Extracted baggage from the context
- */
-function getBaggage(context) {
-    return context.getValue(BAGGAGE_KEY) || undefined;
-}
-exports.getBaggage = getBaggage;
-/**
- * Retrieve the current baggage from the active/current context
- *
- * @returns {Baggage} Extracted baggage from the context
- */
-function getActiveBaggage() {
-    return getBaggage(context_1.ContextAPI.getInstance().active());
-}
-exports.getActiveBaggage = getActiveBaggage;
-/**
- * Store a baggage in the given context
- *
- * @param {Context} Context that manage all context values
- * @param {Baggage} baggage that will be set in the actual context
- */
-function setBaggage(context, baggage) {
-    return context.setValue(BAGGAGE_KEY, baggage);
-}
-exports.setBaggage = setBaggage;
-/**
- * Delete the baggage stored in the given context
- *
- * @param {Context} Context that manage all context values
- */
-function deleteBaggage(context) {
-    return context.deleteValue(BAGGAGE_KEY);
-}
-exports.deleteBaggage = deleteBaggage;
-//# sourceMappingURL=context-helpers.js.map
-
-/***/ }),
-
-/***/ 33274:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.BaggageImpl = void 0;
-class BaggageImpl {
-    constructor(entries) {
-        this._entries = entries ? new Map(entries) : new Map();
-    }
-    getEntry(key) {
-        const entry = this._entries.get(key);
-        if (!entry) {
-            return undefined;
-        }
-        return Object.assign({}, entry);
-    }
-    getAllEntries() {
-        return Array.from(this._entries.entries());
-    }
-    setEntry(key, entry) {
-        const newBaggage = new BaggageImpl(this._entries);
-        newBaggage._entries.set(key, entry);
-        return newBaggage;
-    }
-    removeEntry(key) {
-        const newBaggage = new BaggageImpl(this._entries);
-        newBaggage._entries.delete(key);
-        return newBaggage;
-    }
-    removeEntries(...keys) {
-        const newBaggage = new BaggageImpl(this._entries);
-        for (const key of keys) {
-            newBaggage._entries.delete(key);
-        }
-        return newBaggage;
-    }
-    clear() {
-        return new BaggageImpl();
-    }
-}
-exports.BaggageImpl = BaggageImpl;
-//# sourceMappingURL=baggage-impl.js.map
-
-/***/ }),
-
-/***/ 3997:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.baggageEntryMetadataSymbol = void 0;
-/**
- * Symbol used to make BaggageEntryMetadata an opaque type
- */
-exports.baggageEntryMetadataSymbol = Symbol('BaggageEntryMetadata');
-//# sourceMappingURL=symbol.js.map
-
-/***/ }),
-
-/***/ 38558:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.baggageEntryMetadataFromString = exports.createBaggage = void 0;
-const diag_1 = __nccwpck_require__(1230);
-const baggage_impl_1 = __nccwpck_require__(33274);
-const symbol_1 = __nccwpck_require__(3997);
-const diag = diag_1.DiagAPI.instance();
-/**
- * Create a new Baggage with optional entries
- *
- * @param entries An array of baggage entries the new baggage should contain
- */
-function createBaggage(entries = {}) {
-    return new baggage_impl_1.BaggageImpl(new Map(Object.entries(entries)));
-}
-exports.createBaggage = createBaggage;
-/**
- * Create a serializable BaggageEntryMetadata object from a string.
- *
- * @param str string metadata. Format is currently not defined by the spec and has no special meaning.
- *
- * @since 1.0.0
- */
-function baggageEntryMetadataFromString(str) {
-    if (typeof str !== 'string') {
-        diag.error(`Cannot create baggage metadata from unknown type: ${typeof str}`);
-        str = '';
-    }
-    return {
-        __TYPE__: symbol_1.baggageEntryMetadataSymbol,
-        toString() {
-            return str;
-        },
-    };
-}
-exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
-//# sourceMappingURL=utils.js.map
-
-/***/ }),
-
-/***/ 70244:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.context = void 0;
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const context_1 = __nccwpck_require__(29750);
-/**
- * Entrypoint for context API
- * @since 1.0.0
- */
-exports.context = context_1.ContextAPI.getInstance();
-//# sourceMappingURL=context-api.js.map
-
-/***/ }),
-
-/***/ 99522:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NoopContextManager = void 0;
-const context_1 = __nccwpck_require__(37977);
-class NoopContextManager {
-    active() {
-        return context_1.ROOT_CONTEXT;
-    }
-    with(_context, fn, thisArg, ...args) {
-        return fn.call(thisArg, ...args);
-    }
-    bind(_context, target) {
-        return target;
-    }
-    enable() {
-        return this;
-    }
-    disable() {
-        return this;
-    }
-}
-exports.NoopContextManager = NoopContextManager;
-//# sourceMappingURL=NoopContextManager.js.map
-
-/***/ }),
-
-/***/ 37977:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ROOT_CONTEXT = exports.createContextKey = void 0;
-/**
- * Get a key to uniquely identify a context value
- *
- * @since 1.0.0
- */
-function createContextKey(description) {
-    // The specification states that for the same input, multiple calls should
-    // return different keys. Due to the nature of the JS dependency management
-    // system, this creates problems where multiple versions of some package
-    // could hold different keys for the same property.
-    //
-    // Therefore, we use Symbol.for which returns the same key for the same input.
-    return Symbol.for(description);
-}
-exports.createContextKey = createContextKey;
-class BaseContext {
-    /**
-     * Construct a new context which inherits values from an optional parent context.
-     *
-     * @param parentContext a context from which to inherit values
-     */
-    constructor(parentContext) {
-        // for minification
-        const self = this;
-        self._currentContext = parentContext ? new Map(parentContext) : new Map();
-        self.getValue = (key) => self._currentContext.get(key);
-        self.setValue = (key, value) => {
-            const context = new BaseContext(self._currentContext);
-            context._currentContext.set(key, value);
-            return context;
-        };
-        self.deleteValue = (key) => {
-            const context = new BaseContext(self._currentContext);
-            context._currentContext.delete(key);
-            return context;
-        };
-    }
-}
-/**
- * The root context is used as the default parent context when there is no active context
- *
- * @since 1.0.0
- */
-exports.ROOT_CONTEXT = new BaseContext();
-//# sourceMappingURL=context.js.map
-
-/***/ }),
-
-/***/ 11414:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.diag = void 0;
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const diag_1 = __nccwpck_require__(1230);
-/**
- * Entrypoint for Diag API.
- * Defines Diagnostic handler used for internal diagnostic logging operations.
- * The default provides a Noop DiagLogger implementation which may be changed via the
- * diag.setLogger(logger: DiagLogger) function.
- *
- * @since 1.0.0
- */
-exports.diag = diag_1.DiagAPI.instance();
-//# sourceMappingURL=diag-api.js.map
-
-/***/ }),
-
-/***/ 37723:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DiagComponentLogger = void 0;
-const global_utils_1 = __nccwpck_require__(39923);
-/**
- * Component Logger which is meant to be used as part of any component which
- * will add automatically additional namespace in front of the log message.
- * It will then forward all message to global diag logger
- * @example
- * const cLogger = diag.createComponentLogger({ namespace: '@opentelemetry/instrumentation-http' });
- * cLogger.debug('test');
- * // @opentelemetry/instrumentation-http test
- */
-class DiagComponentLogger {
-    constructor(props) {
-        this._namespace = props.namespace || 'DiagComponentLogger';
-    }
-    debug(...args) {
-        return logProxy('debug', this._namespace, args);
-    }
-    error(...args) {
-        return logProxy('error', this._namespace, args);
-    }
-    info(...args) {
-        return logProxy('info', this._namespace, args);
-    }
-    warn(...args) {
-        return logProxy('warn', this._namespace, args);
-    }
-    verbose(...args) {
-        return logProxy('verbose', this._namespace, args);
-    }
-}
-exports.DiagComponentLogger = DiagComponentLogger;
-function logProxy(funcName, namespace, args) {
-    const logger = (0, global_utils_1.getGlobal)('diag');
-    // shortcut if logger not set
-    if (!logger) {
-        return;
-    }
-    return logger[funcName](namespace, ...args);
-}
-//# sourceMappingURL=ComponentLogger.js.map
-
-/***/ }),
-
-/***/ 66769:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DiagConsoleLogger = exports._originalConsoleMethods = void 0;
-const consoleMap = [
-    { n: 'error', c: 'error' },
-    { n: 'warn', c: 'warn' },
-    { n: 'info', c: 'info' },
-    { n: 'debug', c: 'debug' },
-    { n: 'verbose', c: 'trace' },
-];
-// Save original console methods at module load time, before any instrumentation
-// can wrap them. This ensures DiagConsoleLogger calls the unwrapped originals.
-// Exported for testing only — not part of the public API.
-exports._originalConsoleMethods = {};
-if (typeof console !== 'undefined') {
-    const keys = [
-        'error',
-        'warn',
-        'info',
-        'debug',
-        'trace',
-        'log',
-    ];
-    for (const key of keys) {
-        // eslint-disable-next-line no-console
-        if (typeof console[key] === 'function') {
-            // eslint-disable-next-line no-console
-            exports._originalConsoleMethods[key] = console[key];
-        }
-    }
-}
-/**
- * A simple Immutable Console based diagnostic logger which will output any messages to the Console.
- * If you want to limit the amount of logging to a specific level or lower use the
- * {@link createLogLevelDiagLogger}
- *
- * @since 1.0.0
- */
-class DiagConsoleLogger {
-    constructor() {
-        function _consoleFunc(funcName) {
-            return function (...args) {
-                // Prefer original (pre-instrumentation) methods saved at module load time.
-                let theFunc = exports._originalConsoleMethods[funcName];
-                // Some environments only expose the console when the F12 developer console is open
-                if (typeof theFunc !== 'function') {
-                    theFunc = exports._originalConsoleMethods['log'];
-                }
-                // Fall back in case console was not available at module load time but became available later.
-                if (typeof theFunc !== 'function' && console) {
-                    // eslint-disable-next-line no-console
-                    theFunc = console[funcName];
-                    if (typeof theFunc !== 'function') {
-                        // eslint-disable-next-line no-console
-                        theFunc = console.log;
-                    }
-                }
-                if (typeof theFunc === 'function') {
-                    return theFunc.apply(console, args);
-                }
-            };
-        }
-        for (let i = 0; i < consoleMap.length; i++) {
-            this[consoleMap[i].n] = _consoleFunc(consoleMap[i].c);
-        }
-    }
-}
-exports.DiagConsoleLogger = DiagConsoleLogger;
-//# sourceMappingURL=consoleLogger.js.map
-
-/***/ }),
-
-/***/ 83514:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createLogLevelDiagLogger = void 0;
-const types_1 = __nccwpck_require__(2573);
-function createLogLevelDiagLogger(maxLevel, logger) {
-    if (maxLevel < types_1.DiagLogLevel.NONE) {
-        maxLevel = types_1.DiagLogLevel.NONE;
-    }
-    else if (maxLevel > types_1.DiagLogLevel.ALL) {
-        maxLevel = types_1.DiagLogLevel.ALL;
-    }
-    // In case the logger is null or undefined
-    logger = logger || {};
-    function _filterFunc(funcName, theLevel) {
-        const theFunc = logger[funcName];
-        if (typeof theFunc === 'function' && maxLevel >= theLevel) {
-            return theFunc.bind(logger);
-        }
-        return function () { };
-    }
-    return {
-        error: _filterFunc('error', types_1.DiagLogLevel.ERROR),
-        warn: _filterFunc('warn', types_1.DiagLogLevel.WARN),
-        info: _filterFunc('info', types_1.DiagLogLevel.INFO),
-        debug: _filterFunc('debug', types_1.DiagLogLevel.DEBUG),
-        verbose: _filterFunc('verbose', types_1.DiagLogLevel.VERBOSE),
-    };
-}
-exports.createLogLevelDiagLogger = createLogLevelDiagLogger;
-//# sourceMappingURL=logLevelLogger.js.map
-
-/***/ }),
-
-/***/ 2573:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DiagLogLevel = void 0;
-/**
- * Defines the available internal logging levels for the diagnostic logger, the numeric values
- * of the levels are defined to match the original values from the initial LogLevel to avoid
- * compatibility/migration issues for any implementation that assume the numeric ordering.
- */
-var DiagLogLevel;
-(function (DiagLogLevel) {
-    /** Diagnostic Logging level setting to disable all logging (except and forced logs) */
-    DiagLogLevel[DiagLogLevel["NONE"] = 0] = "NONE";
-    /** Identifies an error scenario */
-    DiagLogLevel[DiagLogLevel["ERROR"] = 30] = "ERROR";
-    /** Identifies a warning scenario */
-    DiagLogLevel[DiagLogLevel["WARN"] = 50] = "WARN";
-    /** General informational log message */
-    DiagLogLevel[DiagLogLevel["INFO"] = 60] = "INFO";
-    /** General debug log message */
-    DiagLogLevel[DiagLogLevel["DEBUG"] = 70] = "DEBUG";
-    /**
-     * Detailed trace level logging should only be used for development, should only be set
-     * in a development environment.
-     */
-    DiagLogLevel[DiagLogLevel["VERBOSE"] = 80] = "VERBOSE";
-    /** Used to set the logging level to include all logging */
-    DiagLogLevel[DiagLogLevel["ALL"] = 9999] = "ALL";
-})(DiagLogLevel = exports.DiagLogLevel || (exports.DiagLogLevel = {}));
-//# sourceMappingURL=types.js.map
-
-/***/ }),
-
-/***/ 63914:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.trace = exports.propagation = exports.metrics = exports.diag = exports.context = exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = exports.isValidSpanId = exports.isValidTraceId = exports.isSpanContextValid = exports.createTraceState = exports.TraceFlags = exports.SpanStatusCode = exports.SpanKind = exports.SamplingDecision = exports.ProxyTracerProvider = exports.ProxyTracer = exports.defaultTextMapSetter = exports.defaultTextMapGetter = exports.ValueType = exports.createNoopMeter = exports.DiagLogLevel = exports.DiagConsoleLogger = exports.ROOT_CONTEXT = exports.createContextKey = exports.baggageEntryMetadataFromString = void 0;
-var utils_1 = __nccwpck_require__(38558);
-Object.defineProperty(exports, "baggageEntryMetadataFromString", ({ enumerable: true, get: function () { return utils_1.baggageEntryMetadataFromString; } }));
-// Context APIs
-var context_1 = __nccwpck_require__(37977);
-Object.defineProperty(exports, "createContextKey", ({ enumerable: true, get: function () { return context_1.createContextKey; } }));
-Object.defineProperty(exports, "ROOT_CONTEXT", ({ enumerable: true, get: function () { return context_1.ROOT_CONTEXT; } }));
-// Diag APIs
-var consoleLogger_1 = __nccwpck_require__(66769);
-Object.defineProperty(exports, "DiagConsoleLogger", ({ enumerable: true, get: function () { return consoleLogger_1.DiagConsoleLogger; } }));
-var types_1 = __nccwpck_require__(2573);
-Object.defineProperty(exports, "DiagLogLevel", ({ enumerable: true, get: function () { return types_1.DiagLogLevel; } }));
-// Metrics APIs
-var NoopMeter_1 = __nccwpck_require__(7017);
-Object.defineProperty(exports, "createNoopMeter", ({ enumerable: true, get: function () { return NoopMeter_1.createNoopMeter; } }));
-var Metric_1 = __nccwpck_require__(73814);
-Object.defineProperty(exports, "ValueType", ({ enumerable: true, get: function () { return Metric_1.ValueType; } }));
-// Propagation APIs
-var TextMapPropagator_1 = __nccwpck_require__(77865);
-Object.defineProperty(exports, "defaultTextMapGetter", ({ enumerable: true, get: function () { return TextMapPropagator_1.defaultTextMapGetter; } }));
-Object.defineProperty(exports, "defaultTextMapSetter", ({ enumerable: true, get: function () { return TextMapPropagator_1.defaultTextMapSetter; } }));
-var ProxyTracer_1 = __nccwpck_require__(4833);
-Object.defineProperty(exports, "ProxyTracer", ({ enumerable: true, get: function () { return ProxyTracer_1.ProxyTracer; } }));
-// TODO: Remove ProxyTracerProvider export in the next major version.
-var ProxyTracerProvider_1 = __nccwpck_require__(20312);
-Object.defineProperty(exports, "ProxyTracerProvider", ({ enumerable: true, get: function () { return ProxyTracerProvider_1.ProxyTracerProvider; } }));
-var SamplingResult_1 = __nccwpck_require__(80434);
-Object.defineProperty(exports, "SamplingDecision", ({ enumerable: true, get: function () { return SamplingResult_1.SamplingDecision; } }));
-var span_kind_1 = __nccwpck_require__(42347);
-Object.defineProperty(exports, "SpanKind", ({ enumerable: true, get: function () { return span_kind_1.SpanKind; } }));
-var status_1 = __nccwpck_require__(61524);
-Object.defineProperty(exports, "SpanStatusCode", ({ enumerable: true, get: function () { return status_1.SpanStatusCode; } }));
-var trace_flags_1 = __nccwpck_require__(47221);
-Object.defineProperty(exports, "TraceFlags", ({ enumerable: true, get: function () { return trace_flags_1.TraceFlags; } }));
-var utils_2 = __nccwpck_require__(90969);
-Object.defineProperty(exports, "createTraceState", ({ enumerable: true, get: function () { return utils_2.createTraceState; } }));
-var spancontext_utils_1 = __nccwpck_require__(60639);
-Object.defineProperty(exports, "isSpanContextValid", ({ enumerable: true, get: function () { return spancontext_utils_1.isSpanContextValid; } }));
-Object.defineProperty(exports, "isValidTraceId", ({ enumerable: true, get: function () { return spancontext_utils_1.isValidTraceId; } }));
-Object.defineProperty(exports, "isValidSpanId", ({ enumerable: true, get: function () { return spancontext_utils_1.isValidSpanId; } }));
-var invalid_span_constants_1 = __nccwpck_require__(57088);
-Object.defineProperty(exports, "INVALID_SPANID", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_SPANID; } }));
-Object.defineProperty(exports, "INVALID_TRACEID", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_TRACEID; } }));
-Object.defineProperty(exports, "INVALID_SPAN_CONTEXT", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_SPAN_CONTEXT; } }));
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const context_api_1 = __nccwpck_require__(70244);
-Object.defineProperty(exports, "context", ({ enumerable: true, get: function () { return context_api_1.context; } }));
-const diag_api_1 = __nccwpck_require__(11414);
-Object.defineProperty(exports, "diag", ({ enumerable: true, get: function () { return diag_api_1.diag; } }));
-const metrics_api_1 = __nccwpck_require__(24434);
-Object.defineProperty(exports, "metrics", ({ enumerable: true, get: function () { return metrics_api_1.metrics; } }));
-const propagation_api_1 = __nccwpck_require__(16389);
-Object.defineProperty(exports, "propagation", ({ enumerable: true, get: function () { return propagation_api_1.propagation; } }));
-const trace_api_1 = __nccwpck_require__(56542);
-Object.defineProperty(exports, "trace", ({ enumerable: true, get: function () { return trace_api_1.trace; } }));
-// Default export.
-exports["default"] = {
-    context: context_api_1.context,
-    diag: diag_api_1.diag,
-    metrics: metrics_api_1.metrics,
-    propagation: propagation_api_1.propagation,
-    trace: trace_api_1.trace,
-};
-//# sourceMappingURL=index.js.map
-
-/***/ }),
-
-/***/ 39923:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.unregisterGlobal = exports.getGlobal = exports.registerGlobal = void 0;
-const version_1 = __nccwpck_require__(59390);
-const semver_1 = __nccwpck_require__(45088);
-const major = version_1.VERSION.split('.')[0];
-const GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
-const _global = (typeof globalThis === 'object'
-    ? globalThis
-    : typeof self === 'object'
-        ? self
-        : typeof window === 'object'
-            ? window
-            : typeof global === 'object'
-                ? global
-                : {});
-function registerGlobal(type, instance, diag, allowOverride = false) {
-    var _a;
-    const api = (_global[GLOBAL_OPENTELEMETRY_API_KEY] = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _a !== void 0 ? _a : {
-        version: version_1.VERSION,
-    });
-    if (!allowOverride && api[type]) {
-        // already registered an API of this type
-        const err = new Error(`@opentelemetry/api: Attempted duplicate registration of API: ${type}`);
-        diag.error(err.stack || err.message);
-        return false;
-    }
-    if (api.version !== version_1.VERSION) {
-        // All registered APIs must be of the same version exactly
-        const err = new Error(`@opentelemetry/api: Registration of version v${api.version} for ${type} does not match previously registered API v${version_1.VERSION}`);
-        diag.error(err.stack || err.message);
-        return false;
-    }
-    api[type] = instance;
-    diag.debug(`@opentelemetry/api: Registered a global for ${type} v${version_1.VERSION}.`);
-    return true;
-}
-exports.registerGlobal = registerGlobal;
-function getGlobal(type) {
-    var _a, _b;
-    const globalVersion = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _a === void 0 ? void 0 : _a.version;
-    if (!globalVersion || !(0, semver_1.isCompatible)(globalVersion)) {
-        return;
-    }
-    return (_b = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _b === void 0 ? void 0 : _b[type];
-}
-exports.getGlobal = getGlobal;
-function unregisterGlobal(type, diag) {
-    diag.debug(`@opentelemetry/api: Unregistering a global for ${type} v${version_1.VERSION}.`);
-    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
-    if (api) {
-        delete api[type];
-    }
-}
-exports.unregisterGlobal = unregisterGlobal;
-//# sourceMappingURL=global-utils.js.map
-
-/***/ }),
-
-/***/ 45088:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isCompatible = exports._makeCompatibilityCheck = void 0;
-const version_1 = __nccwpck_require__(59390);
-const re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
-/**
- * Create a function to test an API version to see if it is compatible with the provided ownVersion.
- *
- * The returned function has the following semantics:
- * - Exact match is always compatible
- * - Major versions must match exactly
- *    - 1.x package cannot use global 2.x package
- *    - 2.x package cannot use global 1.x package
- * - The minor version of the API module requesting access to the global API must be less than or equal to the minor version of this API
- *    - 1.3 package may use 1.4 global because the later global contains all functions 1.3 expects
- *    - 1.4 package may NOT use 1.3 global because it may try to call functions which don't exist on 1.3
- * - If the major version is 0, the minor version is treated as the major and the patch is treated as the minor
- * - Patch and build tag differences are not considered at this time
- *
- * @param ownVersion version which should be checked against
- */
-function _makeCompatibilityCheck(ownVersion) {
-    const acceptedVersions = new Set([ownVersion]);
-    const rejectedVersions = new Set();
-    const myVersionMatch = ownVersion.match(re);
-    if (!myVersionMatch) {
-        // we cannot guarantee compatibility so we always return noop
-        return () => false;
-    }
-    const ownVersionParsed = {
-        major: +myVersionMatch[1],
-        minor: +myVersionMatch[2],
-        patch: +myVersionMatch[3],
-        prerelease: myVersionMatch[4],
-    };
-    // if ownVersion has a prerelease tag, versions must match exactly
-    if (ownVersionParsed.prerelease != null) {
-        return function isExactmatch(globalVersion) {
-            return globalVersion === ownVersion;
-        };
-    }
-    function _reject(v) {
-        rejectedVersions.add(v);
-        return false;
-    }
-    function _accept(v) {
-        acceptedVersions.add(v);
-        return true;
-    }
-    return function isCompatible(globalVersion) {
-        if (acceptedVersions.has(globalVersion)) {
-            return true;
-        }
-        if (rejectedVersions.has(globalVersion)) {
-            return false;
-        }
-        const globalVersionMatch = globalVersion.match(re);
-        if (!globalVersionMatch) {
-            // cannot parse other version
-            // we cannot guarantee compatibility so we always noop
-            return _reject(globalVersion);
-        }
-        const globalVersionParsed = {
-            major: +globalVersionMatch[1],
-            minor: +globalVersionMatch[2],
-            patch: +globalVersionMatch[3],
-            prerelease: globalVersionMatch[4],
-        };
-        // if globalVersion has a prerelease tag, versions must match exactly
-        if (globalVersionParsed.prerelease != null) {
-            return _reject(globalVersion);
-        }
-        // major versions must match
-        if (ownVersionParsed.major !== globalVersionParsed.major) {
-            return _reject(globalVersion);
-        }
-        if (ownVersionParsed.major === 0) {
-            if (ownVersionParsed.minor === globalVersionParsed.minor &&
-                ownVersionParsed.patch <= globalVersionParsed.patch) {
-                return _accept(globalVersion);
-            }
-            return _reject(globalVersion);
-        }
-        if (ownVersionParsed.minor <= globalVersionParsed.minor) {
-            return _accept(globalVersion);
-        }
-        return _reject(globalVersion);
-    };
-}
-exports._makeCompatibilityCheck = _makeCompatibilityCheck;
-/**
- * Test an API version to see if it is compatible with this API.
- *
- * - Exact match is always compatible
- * - Major versions must match exactly
- *    - 1.x package cannot use global 2.x package
- *    - 2.x package cannot use global 1.x package
- * - The minor version of the API module requesting access to the global API must be less than or equal to the minor version of this API
- *    - 1.3 package may use 1.4 global because the later global contains all functions 1.3 expects
- *    - 1.4 package may NOT use 1.3 global because it may try to call functions which don't exist on 1.3
- * - If the major version is 0, the minor version is treated as the major and the patch is treated as the minor
- * - Patch and build tag differences are not considered at this time
- *
- * @param version version of the API requesting an instance of the global API
- */
-exports.isCompatible = _makeCompatibilityCheck(version_1.VERSION);
-//# sourceMappingURL=semver.js.map
-
-/***/ }),
-
-/***/ 24434:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.metrics = void 0;
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const metrics_1 = __nccwpck_require__(18692);
-/**
- * Entrypoint for metrics API
- *
- * @since 1.3.0
- */
-exports.metrics = metrics_1.MetricsAPI.getInstance();
-//# sourceMappingURL=metrics-api.js.map
-
-/***/ }),
-
-/***/ 73814:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ValueType = void 0;
-/**
- * The Type of value. It describes how the data is reported.
- *
- * @since 1.3.0
- */
-var ValueType;
-(function (ValueType) {
-    ValueType[ValueType["INT"] = 0] = "INT";
-    ValueType[ValueType["DOUBLE"] = 1] = "DOUBLE";
-})(ValueType = exports.ValueType || (exports.ValueType = {}));
-//# sourceMappingURL=Metric.js.map
-
-/***/ }),
-
-/***/ 7017:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createNoopMeter = exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = exports.NOOP_OBSERVABLE_GAUGE_METRIC = exports.NOOP_OBSERVABLE_COUNTER_METRIC = exports.NOOP_UP_DOWN_COUNTER_METRIC = exports.NOOP_HISTOGRAM_METRIC = exports.NOOP_GAUGE_METRIC = exports.NOOP_COUNTER_METRIC = exports.NOOP_METER = exports.NoopObservableUpDownCounterMetric = exports.NoopObservableGaugeMetric = exports.NoopObservableCounterMetric = exports.NoopObservableMetric = exports.NoopHistogramMetric = exports.NoopGaugeMetric = exports.NoopUpDownCounterMetric = exports.NoopCounterMetric = exports.NoopMetric = exports.NoopMeter = void 0;
-/**
- * NoopMeter is a noop implementation of the {@link Meter} interface. It reuses
- * constant NoopMetrics for all of its methods.
- */
-class NoopMeter {
-    constructor() { }
-    /**
-     * @see {@link Meter.createGauge}
-     */
-    createGauge(_name, _options) {
-        return exports.NOOP_GAUGE_METRIC;
-    }
-    /**
-     * @see {@link Meter.createHistogram}
-     */
-    createHistogram(_name, _options) {
-        return exports.NOOP_HISTOGRAM_METRIC;
-    }
-    /**
-     * @see {@link Meter.createCounter}
-     */
-    createCounter(_name, _options) {
-        return exports.NOOP_COUNTER_METRIC;
-    }
-    /**
-     * @see {@link Meter.createUpDownCounter}
-     */
-    createUpDownCounter(_name, _options) {
-        return exports.NOOP_UP_DOWN_COUNTER_METRIC;
-    }
-    /**
-     * @see {@link Meter.createObservableGauge}
-     */
-    createObservableGauge(_name, _options) {
-        return exports.NOOP_OBSERVABLE_GAUGE_METRIC;
-    }
-    /**
-     * @see {@link Meter.createObservableCounter}
-     */
-    createObservableCounter(_name, _options) {
-        return exports.NOOP_OBSERVABLE_COUNTER_METRIC;
-    }
-    /**
-     * @see {@link Meter.createObservableUpDownCounter}
-     */
-    createObservableUpDownCounter(_name, _options) {
-        return exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
-    }
-    /**
-     * @see {@link Meter.addBatchObservableCallback}
-     */
-    addBatchObservableCallback(_callback, _observables) { }
-    /**
-     * @see {@link Meter.removeBatchObservableCallback}
-     */
-    removeBatchObservableCallback(_callback) { }
-}
-exports.NoopMeter = NoopMeter;
-class NoopMetric {
-}
-exports.NoopMetric = NoopMetric;
-class NoopCounterMetric extends NoopMetric {
-    add(_value, _attributes) { }
-}
-exports.NoopCounterMetric = NoopCounterMetric;
-class NoopUpDownCounterMetric extends NoopMetric {
-    add(_value, _attributes) { }
-}
-exports.NoopUpDownCounterMetric = NoopUpDownCounterMetric;
-class NoopGaugeMetric extends NoopMetric {
-    record(_value, _attributes) { }
-}
-exports.NoopGaugeMetric = NoopGaugeMetric;
-class NoopHistogramMetric extends NoopMetric {
-    record(_value, _attributes) { }
-}
-exports.NoopHistogramMetric = NoopHistogramMetric;
-class NoopObservableMetric {
-    addCallback(_callback) { }
-    removeCallback(_callback) { }
-}
-exports.NoopObservableMetric = NoopObservableMetric;
-class NoopObservableCounterMetric extends NoopObservableMetric {
-}
-exports.NoopObservableCounterMetric = NoopObservableCounterMetric;
-class NoopObservableGaugeMetric extends NoopObservableMetric {
-}
-exports.NoopObservableGaugeMetric = NoopObservableGaugeMetric;
-class NoopObservableUpDownCounterMetric extends NoopObservableMetric {
-}
-exports.NoopObservableUpDownCounterMetric = NoopObservableUpDownCounterMetric;
-exports.NOOP_METER = new NoopMeter();
-// Synchronous instruments
-exports.NOOP_COUNTER_METRIC = new NoopCounterMetric();
-exports.NOOP_GAUGE_METRIC = new NoopGaugeMetric();
-exports.NOOP_HISTOGRAM_METRIC = new NoopHistogramMetric();
-exports.NOOP_UP_DOWN_COUNTER_METRIC = new NoopUpDownCounterMetric();
-// Asynchronous instruments
-exports.NOOP_OBSERVABLE_COUNTER_METRIC = new NoopObservableCounterMetric();
-exports.NOOP_OBSERVABLE_GAUGE_METRIC = new NoopObservableGaugeMetric();
-exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = new NoopObservableUpDownCounterMetric();
-/**
- * Create a no-op Meter
- *
- * @since 1.3.0
- */
-function createNoopMeter() {
-    return exports.NOOP_METER;
-}
-exports.createNoopMeter = createNoopMeter;
-//# sourceMappingURL=NoopMeter.js.map
-
-/***/ }),
-
-/***/ 12896:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NOOP_METER_PROVIDER = exports.NoopMeterProvider = void 0;
-const NoopMeter_1 = __nccwpck_require__(7017);
-/**
- * An implementation of the {@link MeterProvider} which returns an impotent Meter
- * for all calls to `getMeter`
- */
-class NoopMeterProvider {
-    getMeter(_name, _version, _options) {
-        return NoopMeter_1.NOOP_METER;
-    }
-}
-exports.NoopMeterProvider = NoopMeterProvider;
-exports.NOOP_METER_PROVIDER = new NoopMeterProvider();
-//# sourceMappingURL=NoopMeterProvider.js.map
-
-/***/ }),
-
-/***/ 16389:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.propagation = void 0;
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const propagation_1 = __nccwpck_require__(7);
-/**
- * Entrypoint for propagation API
- *
- * @since 1.0.0
- */
-exports.propagation = propagation_1.PropagationAPI.getInstance();
-//# sourceMappingURL=propagation-api.js.map
-
-/***/ }),
-
-/***/ 54353:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NoopTextMapPropagator = void 0;
-/**
- * No-op implementations of {@link TextMapPropagator}.
- */
-class NoopTextMapPropagator {
-    /** Noop inject function does nothing */
-    inject(_context, _carrier) { }
-    /** Noop extract function does nothing and returns the input context */
-    extract(context, _carrier) {
-        return context;
-    }
-    fields() {
-        return [];
-    }
-}
-exports.NoopTextMapPropagator = NoopTextMapPropagator;
-//# sourceMappingURL=NoopTextMapPropagator.js.map
-
-/***/ }),
-
-/***/ 77865:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.defaultTextMapSetter = exports.defaultTextMapGetter = void 0;
-/**
- * @since 1.0.0
- */
-exports.defaultTextMapGetter = {
-    get(carrier, key) {
-        if (carrier == null) {
-            return undefined;
-        }
-        return carrier[key];
-    },
-    keys(carrier) {
-        if (carrier == null) {
-            return [];
-        }
-        return Object.keys(carrier);
-    },
-};
-/**
- * @since 1.0.0
- */
-exports.defaultTextMapSetter = {
-    set(carrier, key, value) {
-        if (carrier == null) {
-            return;
-        }
-        carrier[key] = value;
-    },
-};
-//# sourceMappingURL=TextMapPropagator.js.map
-
-/***/ }),
-
-/***/ 56542:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.trace = void 0;
-// Split module-level variable definition into separate files to allow
-// tree-shaking on each api instance.
-const trace_1 = __nccwpck_require__(24508);
-/**
- * Entrypoint for trace API
- *
- * @since 1.0.0
- */
-exports.trace = trace_1.TraceAPI.getInstance();
-//# sourceMappingURL=trace-api.js.map
-
-/***/ }),
-
-/***/ 47168:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NonRecordingSpan = void 0;
-const invalid_span_constants_1 = __nccwpck_require__(57088);
-/**
- * The NonRecordingSpan is the default {@link Span} that is used when no Span
- * implementation is available. All operations are no-op including context
- * propagation.
- */
-class NonRecordingSpan {
-    constructor(spanContext = invalid_span_constants_1.INVALID_SPAN_CONTEXT) {
-        this._spanContext = spanContext;
-    }
-    // Returns a SpanContext.
-    spanContext() {
-        return this._spanContext;
-    }
-    // By default does nothing
-    setAttribute(_key, _value) {
-        return this;
-    }
-    // By default does nothing
-    setAttributes(_attributes) {
-        return this;
-    }
-    // By default does nothing
-    addEvent(_name, _attributes) {
-        return this;
-    }
-    addLink(_link) {
-        return this;
-    }
-    addLinks(_links) {
-        return this;
-    }
-    // By default does nothing
-    setStatus(_status) {
-        return this;
-    }
-    // By default does nothing
-    updateName(_name) {
-        return this;
-    }
-    // By default does nothing
-    end(_endTime) { }
-    // isRecording always returns false for NonRecordingSpan.
-    isRecording() {
-        return false;
-    }
-    // By default does nothing
-    recordException(_exception, _time) { }
-}
-exports.NonRecordingSpan = NonRecordingSpan;
-//# sourceMappingURL=NonRecordingSpan.js.map
-
-/***/ }),
-
-/***/ 9051:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NoopTracer = void 0;
-const context_1 = __nccwpck_require__(29750);
-const context_utils_1 = __nccwpck_require__(52771);
-const NonRecordingSpan_1 = __nccwpck_require__(47168);
-const spancontext_utils_1 = __nccwpck_require__(60639);
-const contextApi = context_1.ContextAPI.getInstance();
-/**
- * No-op implementations of {@link Tracer}.
- */
-class NoopTracer {
-    // startSpan starts a noop span.
-    startSpan(name, options, context = contextApi.active()) {
-        const root = Boolean(options === null || options === void 0 ? void 0 : options.root);
-        if (root) {
-            return new NonRecordingSpan_1.NonRecordingSpan();
-        }
-        const parentFromContext = context && (0, context_utils_1.getSpanContext)(context);
-        if (isSpanContext(parentFromContext) &&
-            (0, spancontext_utils_1.isSpanContextValid)(parentFromContext)) {
-            return new NonRecordingSpan_1.NonRecordingSpan(parentFromContext);
-        }
-        else {
-            return new NonRecordingSpan_1.NonRecordingSpan();
-        }
-    }
-    startActiveSpan(name, arg2, arg3, arg4) {
-        let opts;
-        let ctx;
-        let fn;
-        if (arguments.length < 2) {
-            return;
-        }
-        else if (arguments.length === 2) {
-            fn = arg2;
-        }
-        else if (arguments.length === 3) {
-            opts = arg2;
-            fn = arg3;
-        }
-        else {
-            opts = arg2;
-            ctx = arg3;
-            fn = arg4;
-        }
-        const parentContext = ctx !== null && ctx !== void 0 ? ctx : contextApi.active();
-        const span = this.startSpan(name, opts, parentContext);
-        const contextWithSpanSet = (0, context_utils_1.setSpan)(parentContext, span);
-        return contextApi.with(contextWithSpanSet, fn, undefined, span);
-    }
-}
-exports.NoopTracer = NoopTracer;
-function isSpanContext(spanContext) {
-    return (spanContext !== null &&
-        typeof spanContext === 'object' &&
-        'spanId' in spanContext &&
-        typeof spanContext['spanId'] === 'string' &&
-        'traceId' in spanContext &&
-        typeof spanContext['traceId'] === 'string' &&
-        'traceFlags' in spanContext &&
-        typeof spanContext['traceFlags'] === 'number');
-}
-//# sourceMappingURL=NoopTracer.js.map
-
-/***/ }),
-
-/***/ 94602:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NoopTracerProvider = void 0;
-const NoopTracer_1 = __nccwpck_require__(9051);
-/**
- * An implementation of the {@link TracerProvider} which returns an impotent
- * Tracer for all calls to `getTracer`.
- *
- * All operations are no-op.
- */
-class NoopTracerProvider {
-    getTracer(_name, _version, _options) {
-        return new NoopTracer_1.NoopTracer();
-    }
-}
-exports.NoopTracerProvider = NoopTracerProvider;
-//# sourceMappingURL=NoopTracerProvider.js.map
-
-/***/ }),
-
-/***/ 4833:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ProxyTracer = void 0;
-const NoopTracer_1 = __nccwpck_require__(9051);
-const NOOP_TRACER = new NoopTracer_1.NoopTracer();
-/**
- * Proxy tracer provided by the proxy tracer provider
- *
- * @since 1.0.0
- */
-class ProxyTracer {
-    constructor(provider, name, version, options) {
-        this._provider = provider;
-        this.name = name;
-        this.version = version;
-        this.options = options;
-    }
-    startSpan(name, options, context) {
-        return this._getTracer().startSpan(name, options, context);
-    }
-    startActiveSpan(_name, _options, _context, _fn) {
-        const tracer = this._getTracer();
-        return Reflect.apply(tracer.startActiveSpan, tracer, arguments);
-    }
-    /**
-     * Try to get a tracer from the proxy tracer provider.
-     * If the proxy tracer provider has no delegate, return a noop tracer.
-     */
-    _getTracer() {
-        if (this._delegate) {
-            return this._delegate;
-        }
-        const tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
-        if (!tracer) {
-            return NOOP_TRACER;
-        }
-        this._delegate = tracer;
-        return this._delegate;
-    }
-}
-exports.ProxyTracer = ProxyTracer;
-//# sourceMappingURL=ProxyTracer.js.map
-
-/***/ }),
-
-/***/ 20312:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ProxyTracerProvider = void 0;
-const ProxyTracer_1 = __nccwpck_require__(4833);
-const NoopTracerProvider_1 = __nccwpck_require__(94602);
-const NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider();
-/**
- * Tracer provider which provides {@link ProxyTracer}s.
- *
- * Before a delegate is set, tracers provided are NoOp.
- *   When a delegate is set, traces are provided from the delegate.
- *   When a delegate is set after tracers have already been provided,
- *   all tracers already provided will use the provided delegate implementation.
- *
- * @deprecated This will be removed in the next major version.
- * @since 1.0.0
- */
-class ProxyTracerProvider {
-    /**
-     * Get a {@link ProxyTracer}
-     */
-    getTracer(name, version, options) {
-        var _a;
-        return ((_a = this.getDelegateTracer(name, version, options)) !== null && _a !== void 0 ? _a : new ProxyTracer_1.ProxyTracer(this, name, version, options));
-    }
-    getDelegate() {
-        var _a;
-        return (_a = this._delegate) !== null && _a !== void 0 ? _a : NOOP_TRACER_PROVIDER;
-    }
-    /**
-     * Set the delegate tracer provider
-     */
-    setDelegate(delegate) {
-        this._delegate = delegate;
-    }
-    getDelegateTracer(name, version, options) {
-        var _a;
-        return (_a = this._delegate) === null || _a === void 0 ? void 0 : _a.getTracer(name, version, options);
-    }
-}
-exports.ProxyTracerProvider = ProxyTracerProvider;
-//# sourceMappingURL=ProxyTracerProvider.js.map
-
-/***/ }),
-
-/***/ 80434:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SamplingDecision = void 0;
-/**
- * @deprecated use the one declared in @opentelemetry/sdk-trace-base instead.
- * A sampling decision that determines how a {@link Span} will be recorded
- * and collected.
- *
- * @since 1.0.0
- */
-var SamplingDecision;
-(function (SamplingDecision) {
-    /**
-     * `Span.isRecording() === false`, span will not be recorded and all events
-     * and attributes will be dropped.
-     */
-    SamplingDecision[SamplingDecision["NOT_RECORD"] = 0] = "NOT_RECORD";
-    /**
-     * `Span.isRecording() === true`, but `Sampled` flag in {@link TraceFlags}
-     * MUST NOT be set.
-     */
-    SamplingDecision[SamplingDecision["RECORD"] = 1] = "RECORD";
-    /**
-     * `Span.isRecording() === true` AND `Sampled` flag in {@link TraceFlags}
-     * MUST be set.
-     */
-    SamplingDecision[SamplingDecision["RECORD_AND_SAMPLED"] = 2] = "RECORD_AND_SAMPLED";
-})(SamplingDecision = exports.SamplingDecision || (exports.SamplingDecision = {}));
-//# sourceMappingURL=SamplingResult.js.map
-
-/***/ }),
-
-/***/ 52771:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getSpanContext = exports.setSpanContext = exports.deleteSpan = exports.setSpan = exports.getActiveSpan = exports.getSpan = void 0;
-const context_1 = __nccwpck_require__(37977);
-const NonRecordingSpan_1 = __nccwpck_require__(47168);
-const context_2 = __nccwpck_require__(29750);
-/**
- * span key
- */
-const SPAN_KEY = (0, context_1.createContextKey)('OpenTelemetry Context Key SPAN');
-/**
- * Return the span if one exists
- *
- * @param context context to get span from
- */
-function getSpan(context) {
-    return context.getValue(SPAN_KEY) || undefined;
-}
-exports.getSpan = getSpan;
-/**
- * Gets the span from the current context, if one exists.
- */
-function getActiveSpan() {
-    return getSpan(context_2.ContextAPI.getInstance().active());
-}
-exports.getActiveSpan = getActiveSpan;
-/**
- * Set the span on a context
- *
- * @param context context to use as parent
- * @param span span to set active
- */
-function setSpan(context, span) {
-    return context.setValue(SPAN_KEY, span);
-}
-exports.setSpan = setSpan;
-/**
- * Remove current span stored in the context
- *
- * @param context context to delete span from
- */
-function deleteSpan(context) {
-    return context.deleteValue(SPAN_KEY);
-}
-exports.deleteSpan = deleteSpan;
-/**
- * Wrap span context in a NoopSpan and set as span in a new
- * context
- *
- * @param context context to set active span on
- * @param spanContext span context to be wrapped
- */
-function setSpanContext(context, spanContext) {
-    return setSpan(context, new NonRecordingSpan_1.NonRecordingSpan(spanContext));
-}
-exports.setSpanContext = setSpanContext;
-/**
- * Get the span context of the span if it exists.
- *
- * @param context context to get values from
- */
-function getSpanContext(context) {
-    var _a;
-    return (_a = getSpan(context)) === null || _a === void 0 ? void 0 : _a.spanContext();
-}
-exports.getSpanContext = getSpanContext;
-//# sourceMappingURL=context-utils.js.map
-
-/***/ }),
-
-/***/ 77903:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TraceStateImpl = void 0;
-const tracestate_validators_1 = __nccwpck_require__(95618);
-const MAX_TRACE_STATE_ITEMS = 32;
-const MAX_TRACE_STATE_LEN = 512;
-const LIST_MEMBERS_SEPARATOR = ',';
-const LIST_MEMBER_KEY_VALUE_SPLITTER = '=';
-/**
- * TraceState must be a class and not a simple object type because of the spec
- * requirement (https://www.w3.org/TR/trace-context/#tracestate-field).
- *
- * Here is the list of allowed mutations:
- * - New key-value pair should be added into the beginning of the list
- * - The value of any key can be updated. Modified keys MUST be moved to the
- * beginning of the list.
- */
-class TraceStateImpl {
-    constructor(rawTraceState) {
-        this._internalState = new Map();
-        if (rawTraceState)
-            this._parse(rawTraceState);
-    }
-    set(key, value) {
-        // TODO: Benchmark the different approaches(map vs list) and
-        // use the faster one.
-        const traceState = this._clone();
-        if (traceState._internalState.has(key)) {
-            traceState._internalState.delete(key);
-        }
-        traceState._internalState.set(key, value);
-        return traceState;
-    }
-    unset(key) {
-        const traceState = this._clone();
-        traceState._internalState.delete(key);
-        return traceState;
-    }
-    get(key) {
-        return this._internalState.get(key);
-    }
-    serialize() {
-        return (Array.from(this._internalState.keys())
-            // Use reduceRight() because keys are stored in reverse insertion order.
-            .reduceRight((agg, key) => {
-            agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + this.get(key));
-            return agg;
-        }, [])
-            .join(LIST_MEMBERS_SEPARATOR));
-    }
-    _parse(rawTraceState) {
-        if (rawTraceState.length > MAX_TRACE_STATE_LEN)
-            return;
-        this._internalState = rawTraceState
-            .split(LIST_MEMBERS_SEPARATOR)
-            // Use reduceRight() so new keys (.set(...)) will be placed at the beginning
-            .reduceRight((agg, part) => {
-            const listMember = part.trim(); // Optional Whitespace (OWS) handling
-            const i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
-            if (i !== -1) {
-                const key = listMember.slice(0, i);
-                const value = listMember.slice(i + 1, part.length);
-                if ((0, tracestate_validators_1.validateKey)(key) && (0, tracestate_validators_1.validateValue)(value)) {
-                    agg.set(key, value);
-                }
-                else {
-                    // TODO: Consider to add warning log
-                }
-            }
-            return agg;
-        }, new Map());
-        // Because of the reverse() requirement, trunc must be done after map is created
-        if (this._internalState.size > MAX_TRACE_STATE_ITEMS) {
-            this._internalState = new Map(Array.from(this._internalState.entries())
-                .reverse() // Use reverse same as original tracestate parse chain
-                .slice(0, MAX_TRACE_STATE_ITEMS));
-        }
-    }
-    // @ts-expect-error TS6133 Accessed in tests only.
-    _keys() {
-        return Array.from(this._internalState.keys()).reverse();
-    }
-    _clone() {
-        const traceState = new TraceStateImpl();
-        traceState._internalState = new Map(this._internalState);
-        return traceState;
-    }
-}
-exports.TraceStateImpl = TraceStateImpl;
-//# sourceMappingURL=tracestate-impl.js.map
-
-/***/ }),
-
-/***/ 95618:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.validateValue = exports.validateKey = void 0;
-const VALID_KEY_CHAR_RANGE = '[_0-9a-z-*/]';
-const VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
-const VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
-const VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
-const VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
-const INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
-/**
- * Key is opaque string up to 256 characters printable. It MUST begin with a
- * lowercase letter, and can only contain lowercase letters a-z, digits 0-9,
- * underscores _, dashes -, asterisks *, and forward slashes /.
- * For multi-tenant vendor scenarios, an at sign (@) can be used to prefix the
- * vendor name. Vendors SHOULD set the tenant ID at the beginning of the key.
- * see https://www.w3.org/TR/trace-context/#key
- */
-function validateKey(key) {
-    return VALID_KEY_REGEX.test(key);
-}
-exports.validateKey = validateKey;
-/**
- * Value is opaque string up to 256 characters printable ASCII RFC0020
- * characters (i.e., the range 0x20 to 0x7E) except comma , and =.
- */
-function validateValue(value) {
-    return (VALID_VALUE_BASE_REGEX.test(value) &&
-        !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value));
-}
-exports.validateValue = validateValue;
-//# sourceMappingURL=tracestate-validators.js.map
-
-/***/ }),
-
-/***/ 90969:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createTraceState = void 0;
-const tracestate_impl_1 = __nccwpck_require__(77903);
-/**
- * @since 1.1.0
- */
-function createTraceState(rawTraceState) {
-    return new tracestate_impl_1.TraceStateImpl(rawTraceState);
-}
-exports.createTraceState = createTraceState;
-//# sourceMappingURL=utils.js.map
-
-/***/ }),
-
-/***/ 57088:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = void 0;
-const trace_flags_1 = __nccwpck_require__(47221);
-/**
- * @since 1.0.0
- */
-exports.INVALID_SPANID = '0000000000000000';
-/**
- * @since 1.0.0
- */
-exports.INVALID_TRACEID = '00000000000000000000000000000000';
-/**
- * @since 1.0.0
- */
-exports.INVALID_SPAN_CONTEXT = {
-    traceId: exports.INVALID_TRACEID,
-    spanId: exports.INVALID_SPANID,
-    traceFlags: trace_flags_1.TraceFlags.NONE,
-};
-//# sourceMappingURL=invalid-span-constants.js.map
-
-/***/ }),
-
-/***/ 42347:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SpanKind = void 0;
-/**
- * @since 1.0.0
- */
-var SpanKind;
-(function (SpanKind) {
-    /** Default value. Indicates that the span is used internally. */
-    SpanKind[SpanKind["INTERNAL"] = 0] = "INTERNAL";
-    /**
-     * Indicates that the span covers server-side handling of an RPC or other
-     * remote request.
-     */
-    SpanKind[SpanKind["SERVER"] = 1] = "SERVER";
-    /**
-     * Indicates that the span covers the client-side wrapper around an RPC or
-     * other remote request.
-     */
-    SpanKind[SpanKind["CLIENT"] = 2] = "CLIENT";
-    /**
-     * Indicates that the span describes producer sending a message to a
-     * broker. Unlike client and server, there is no direct critical path latency
-     * relationship between producer and consumer spans.
-     */
-    SpanKind[SpanKind["PRODUCER"] = 3] = "PRODUCER";
-    /**
-     * Indicates that the span describes consumer receiving a message from a
-     * broker. Unlike client and server, there is no direct critical path latency
-     * relationship between producer and consumer spans.
-     */
-    SpanKind[SpanKind["CONSUMER"] = 4] = "CONSUMER";
-})(SpanKind = exports.SpanKind || (exports.SpanKind = {}));
-//# sourceMappingURL=span_kind.js.map
-
-/***/ }),
-
-/***/ 60639:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.wrapSpanContext = exports.isSpanContextValid = exports.isValidSpanId = exports.isValidTraceId = void 0;
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-const invalid_span_constants_1 = __nccwpck_require__(57088);
-const NonRecordingSpan_1 = __nccwpck_require__(47168);
-// Valid characters (0-9, a-f, A-F) are marked as 1.
-const isHex = new Uint8Array([
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-]);
-function isValidHex(id, length) {
-    // As of 1.9.0 the id was allowed to be a non-string value,
-    // even though it was not possible in the types.
-    if (typeof id !== 'string' || id.length !== length)
-        return false;
-    let r = 0;
-    for (let i = 0; i < id.length; i += 4) {
-        r +=
-            (isHex[id.charCodeAt(i)] | 0) +
-                (isHex[id.charCodeAt(i + 1)] | 0) +
-                (isHex[id.charCodeAt(i + 2)] | 0) +
-                (isHex[id.charCodeAt(i + 3)] | 0);
-    }
-    return r === length;
-}
-/**
- * @since 1.0.0
- */
-function isValidTraceId(traceId) {
-    return isValidHex(traceId, 32) && traceId !== invalid_span_constants_1.INVALID_TRACEID;
-}
-exports.isValidTraceId = isValidTraceId;
-/**
- * @since 1.0.0
- */
-function isValidSpanId(spanId) {
-    return isValidHex(spanId, 16) && spanId !== invalid_span_constants_1.INVALID_SPANID;
-}
-exports.isValidSpanId = isValidSpanId;
-/**
- * Returns true if this {@link SpanContext} is valid.
- * @return true if this {@link SpanContext} is valid.
- *
- * @since 1.0.0
- */
-function isSpanContextValid(spanContext) {
-    return (isValidTraceId(spanContext.traceId) && isValidSpanId(spanContext.spanId));
-}
-exports.isSpanContextValid = isSpanContextValid;
-/**
- * Wrap the given {@link SpanContext} in a new non-recording {@link Span}
- *
- * @param spanContext span context to be wrapped
- * @returns a new non-recording {@link Span} with the provided context
- */
-function wrapSpanContext(spanContext) {
-    return new NonRecordingSpan_1.NonRecordingSpan(spanContext);
-}
-exports.wrapSpanContext = wrapSpanContext;
-//# sourceMappingURL=spancontext-utils.js.map
-
-/***/ }),
-
-/***/ 61524:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SpanStatusCode = void 0;
-/**
- * An enumeration of status codes.
- *
- * @since 1.0.0
- */
-var SpanStatusCode;
-(function (SpanStatusCode) {
-    /**
-     * The default status.
-     */
-    SpanStatusCode[SpanStatusCode["UNSET"] = 0] = "UNSET";
-    /**
-     * The operation has been validated by an Application developer or
-     * Operator to have completed successfully.
-     */
-    SpanStatusCode[SpanStatusCode["OK"] = 1] = "OK";
-    /**
-     * The operation contains an error.
-     */
-    SpanStatusCode[SpanStatusCode["ERROR"] = 2] = "ERROR";
-})(SpanStatusCode = exports.SpanStatusCode || (exports.SpanStatusCode = {}));
-//# sourceMappingURL=status.js.map
-
-/***/ }),
-
-/***/ 47221:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TraceFlags = void 0;
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-/**
- * @since 1.0.0
- */
-var TraceFlags;
-(function (TraceFlags) {
-    /** Represents no flag set. */
-    TraceFlags[TraceFlags["NONE"] = 0] = "NONE";
-    /** Bit to represent whether trace is sampled in trace flags. */
-    TraceFlags[TraceFlags["SAMPLED"] = 1] = "SAMPLED";
-})(TraceFlags = exports.TraceFlags || (exports.TraceFlags = {}));
-//# sourceMappingURL=trace_flags.js.map
-
-/***/ }),
-
-/***/ 59390:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.VERSION = void 0;
-// this is autogenerated file, see scripts/version-update.js
-exports.VERSION = '1.9.1';
-//# sourceMappingURL=version.js.map
-
-/***/ }),
-
 /***/ 5038:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -6121,7 +3824,7 @@ exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.W3CBaggagePropagator = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const suppress_tracing_1 = __nccwpck_require__(97963);
 const constants_1 = __nccwpck_require__(76217);
 const utils_1 = __nccwpck_require__(67613);
@@ -6183,7 +3886,7 @@ exports.W3CBaggagePropagator = W3CBaggagePropagator;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const constants_1 = __nccwpck_require__(76217);
 function serializeKeyPairs(keyPairs) {
     return keyPairs.reduce((hValue, current) => {
@@ -6357,7 +4060,7 @@ exports.AnchoredClock = AnchoredClock;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 function sanitizeAttributes(attributes) {
     const out = {};
     if (typeof attributes !== 'object' || attributes == null) {
@@ -6502,7 +4205,7 @@ exports._globalThis = globalThis;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loggingErrorHandler = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 /**
  * Returns a function that logs an error using the provided logger, or a
  * console logger if one was not provided.
@@ -6863,7 +4566,7 @@ exports.internal = {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports._export = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const suppress_tracing_1 = __nccwpck_require__(97963);
 /**
  * @internal
@@ -6958,7 +4661,7 @@ Object.defineProperty(exports, "getStringListFromEnv", ({ enumerable: true, get:
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const util_1 = __nccwpck_require__(39023);
 /**
  * Retrieves a number from an environment variable.
@@ -7111,7 +4814,7 @@ exports.SDK_INFO = {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CompositePropagator = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 /** Combines multiple propagators into a single propagator. */
 class CompositePropagator {
     _propagators;
@@ -7370,7 +5073,7 @@ exports.TraceState = TraceState;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const suppress_tracing_1 = __nccwpck_require__(97963);
 const TraceState_1 = __nccwpck_require__(31001);
 exports.TRACE_PARENT_HEADER = 'traceparent';
@@ -7470,7 +5173,7 @@ exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const RPC_METADATA_KEY = (0, api_1.createContextKey)('OpenTelemetry SDK Context Key RPC_METADATA');
 var RPCType;
 (function (RPCType) {
@@ -7503,7 +5206,7 @@ exports.getRPCMetadata = getRPCMetadata;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const SUPPRESS_TRACING_KEY = (0, api_1.createContextKey)('OpenTelemetry SDK Context Key SUPPRESS_TRACING');
 function suppressTracing(context) {
     return context.setValue(SUPPRESS_TRACING_KEY, true);
@@ -7580,7 +5283,7 @@ exports.diagLogLevelFromString = void 0;
  * Copyright The OpenTelemetry Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const logLevelMap = {
     ALL: api_1.DiagLogLevel.ALL,
     VERBOSE: api_1.DiagLogLevel.VERBOSE,
@@ -8089,7 +5792,7 @@ exports.VERSION = '2.12.0';
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.registerInstrumentations = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const api_logs_1 = __nccwpck_require__(79334);
 const autoLoaderUtils_1 = __nccwpck_require__(99581);
 /**
@@ -8205,7 +5908,7 @@ Object.defineProperty(exports, "semconvStabilityFromStr", ({ enumerable: true, g
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.InstrumentationAbstract = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const api_logs_1 = __nccwpck_require__(79334);
 const shimmer = __nccwpck_require__(61123);
 /**
@@ -8649,7 +6352,7 @@ const shimmer_1 = __nccwpck_require__(61123);
 const instrumentation_1 = __nccwpck_require__(33630);
 const RequireInTheMiddleSingleton_1 = __nccwpck_require__(16696);
 const import_in_the_middle_1 = __nccwpck_require__(46929);
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const require_in_the_middle_1 = __nccwpck_require__(99155);
 const fs_1 = __nccwpck_require__(79896);
 const utils_1 = __nccwpck_require__(66705);
@@ -9041,7 +6744,7 @@ exports.satisfies = void 0;
 // `semver` package has some initialization delay (lots of RegExp init and compile)
 // and this leads to coldstart overhead for the OTEL Lambda Node.js layer.
 // Hence, we have implemented lightweight version of it internally with required functionalities.
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const VERSION_REGEXP = /^(?:v)?(?<version>(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*))(?:-(?<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?<build>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 const RANGE_REGEXP = /^(?<op><|>|=|==|<=|>=|~|\^|~>)?\s*(?:v)?(?<version>(?<major>x|X|\*|0|[1-9]\d*)(?:\.(?<minor>x|X|\*|0|[1-9]\d*))?(?:\.(?<patch>x|X|\*|0|[1-9]\d*))?)(?:-(?<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?<build>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 const operatorResMap = {
@@ -9753,7 +7456,7 @@ exports.isWrapped = isWrapped;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.defaultResource = exports.emptyResource = exports.resourceFromDetectedResource = exports.resourceFromAttributes = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const semantic_conventions_1 = __nccwpck_require__(13695);
 const default_service_name_1 = __nccwpck_require__(37062);
@@ -9955,7 +7658,7 @@ exports._clearDefaultServiceNameCache = _clearDefaultServiceNameCache;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.detectResources = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const ResourceImpl_1 = __nccwpck_require__(96785);
 /**
  * Runs all resource detectors and returns the results merged into a single Resource.
@@ -9992,7 +7695,7 @@ exports.detectResources = detectResources;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.envDetector = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const semantic_conventions_1 = __nccwpck_require__(13695);
 const core_1 = __nccwpck_require__(24637);
 /**
@@ -10238,7 +7941,7 @@ exports.osDetector = new OSDetector();
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.processDetector = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const semconv_1 = __nccwpck_require__(92946);
 const os = __nccwpck_require__(70857);
 /**
@@ -10920,7 +8623,7 @@ exports.SimpleSpanProcessor = SimpleSpanProcessor;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildSamplerFromEnv = exports.loadDefaultConfig = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const sdk_trace_1 = __nccwpck_require__(16410);
 var TracesSamplerValues;
@@ -11205,7 +8908,7 @@ var SamplingDecision;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SpanImpl = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const semantic_conventions_1 = __nccwpck_require__(13695);
 const enums_1 = __nccwpck_require__(56592);
@@ -11623,7 +9326,7 @@ exports.SpanImpl = SpanImpl;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StackContextManager = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 /**
  * StackContextManager can track context for synchronous code (the call
  * "stack"). It does not track context for asynchronous code (Promises,
@@ -11739,7 +9442,7 @@ exports.StackContextManager = StackContextManager;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Tracer = void 0;
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const Span_1 = __nccwpck_require__(19236);
 const TracerMetrics_1 = __nccwpck_require__(82152);
@@ -11958,7 +9661,7 @@ function samplingDecisionToString(decision) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TracerProvider = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const resources_1 = __nccwpck_require__(75647);
 const Tracer_1 = __nccwpck_require__(15649);
 const MultiSpanProcessor_1 = __nccwpck_require__(94975);
@@ -12102,7 +9805,7 @@ exports.ExceptionEventName = 'exception';
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BatchSpanProcessorBase = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const SpanProcessorMetrics_1 = __nccwpck_require__(8416);
 const semconv_1 = __nccwpck_require__(995);
@@ -12489,7 +10192,7 @@ exports.NoopSpanProcessor = NoopSpanProcessor;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SimpleSpanProcessor = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const SpanProcessorMetrics_1 = __nccwpck_require__(8416);
 const semconv_1 = __nccwpck_require__(995);
@@ -12973,7 +10676,7 @@ exports.createAlwaysRecordSampler = createAlwaysRecordSampler;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ParentBasedSampler = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const core_1 = __nccwpck_require__(24637);
 const AlwaysOffSampler_1 = __nccwpck_require__(2227);
 const AlwaysOnSampler_1 = __nccwpck_require__(37937);
@@ -13038,7 +10741,7 @@ exports.ParentBasedSampler = ParentBasedSampler;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TraceIdRatioBasedSampler = void 0;
-const api_1 = __nccwpck_require__(63914);
+const api_1 = __nccwpck_require__(91408);
 const Sampler_1 = __nccwpck_require__(274);
 /** Sampler that samples a given fraction of traces based of trace id deterministically. */
 class TraceIdRatioBasedSampler {
@@ -43093,7 +40796,7 @@ exports.contextLinesIntegration = contextLinesIntegration;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 const diagnosticsChannel = __nccwpck_require__(53053);
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const core = __nccwpck_require__(24517);
 const constants = __nccwpck_require__(87044);
@@ -43192,7 +40895,7 @@ exports.INSTRUMENTATION_NAME = INSTRUMENTATION_NAME;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 const diagnosticsChannel = __nccwpck_require__(53053);
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core = __nccwpck_require__(24517);
 const debugBuild = __nccwpck_require__(84936);
 
@@ -43276,7 +40979,7 @@ exports.httpServerIntegration = httpServerIntegration;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 const node_events = __nccwpck_require__(78474);
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core$1 = __nccwpck_require__(24637);
 const attributes = __nccwpck_require__(7583);
 const core = __nccwpck_require__(24517);
@@ -45566,7 +43269,7 @@ exports.instrumentWhenWrapped = instrumentWhenWrapped;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core = __nccwpck_require__(24517);
 
 function setupOpenTelemetryLogger() {
@@ -45953,7 +43656,7 @@ exports.getSentryRelease = getSentryRelease;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 const os = __nccwpck_require__(48161);
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const core = __nccwpck_require__(24517);
 const opentelemetry = __nccwpck_require__(98029);
@@ -46317,7 +44020,7 @@ exports.validateOpenTelemetrySetup = validateOpenTelemetrySetup;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const opentelemetry = __nccwpck_require__(98029);
 
 function setIsolationScope(isolationScope) {
@@ -48231,7 +45934,7 @@ exports.EndOperation = EndOperation;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core = __nccwpck_require__(24517);
 const attributes = __nccwpck_require__(7583);
 const semconv = __nccwpck_require__(78863);
@@ -49191,7 +46894,7 @@ exports.FastifyTypes = FastifyTypes;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const attributes = __nccwpck_require__(7583);
 const core = __nccwpck_require__(24517);
@@ -49418,7 +47121,7 @@ exports.FastifyInstrumentationV3 = FastifyInstrumentationV3;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const constants = __nccwpck_require__(38225);
 
 function startSpan(reply, tracer, spanName, spanAttributes = {}) {
@@ -50962,7 +48665,7 @@ exports.AttributeNames = AttributeNames;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const setHttpServerSpanRouteAttribute = __nccwpck_require__(59692);
 const instrumentation = __nccwpck_require__(99272);
 const core = __nccwpck_require__(24517);
@@ -51461,7 +49164,7 @@ exports.setupHonoErrorHandler = setupHonoErrorHandler;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const core = __nccwpck_require__(24517);
 const constants = __nccwpck_require__(12521);
@@ -52078,7 +49781,7 @@ exports.MESSAGING_SYSTEM_VALUE_KAFKA = MESSAGING_SYSTEM_VALUE_KAFKA;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const attributes = __nccwpck_require__(7583);
 const core = __nccwpck_require__(24517);
 const semconv = __nccwpck_require__(48459);
@@ -52552,7 +50255,7 @@ exports.AttributeNames = AttributeNames;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const types = __nccwpck_require__(47454);
 const core = __nccwpck_require__(24517);
@@ -55003,7 +52706,7 @@ exports.shouldSkipInstrumentation = shouldSkipInstrumentation;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const instrumentation = __nccwpck_require__(99272);
 const InstrumentationNodeModuleFile = __nccwpck_require__(75593);
 const attributes = __nccwpck_require__(7583);
@@ -56029,7 +53732,7 @@ exports.tediousIntegration = tediousIntegration;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const events = __nccwpck_require__(2053);
+const events = __nccwpck_require__(24434);
 const instrumentation = __nccwpck_require__(99272);
 const attributes = __nccwpck_require__(7583);
 const semconv = __nccwpck_require__(74806);
@@ -56634,7 +54337,7 @@ exports.initWithoutDefaultIntegrations = initWithoutDefaultIntegrations;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const sdkTraceBase = __nccwpck_require__(19644);
 const core = __nccwpck_require__(24517);
 const nodeCore = __nccwpck_require__(8698);
@@ -56912,7 +54615,7 @@ exports.setHttpServerSpanRouteAttribute = setHttpServerSpanRouteAttribute;
 /***/ 24380:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const core = __nccwpck_require__(24517);
 const attributes = __nccwpck_require__(7583);
 const sdkTraceBase = __nccwpck_require__(19644);
@@ -58824,7 +56527,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 const asyncContextStrategy = __nccwpck_require__(24380);
 const core = __nccwpck_require__(24517);
-const api = __nccwpck_require__(63914);
+const api = __nccwpck_require__(91408);
 const node_async_hooks = __nccwpck_require__(16698);
 const node_events = __nccwpck_require__(78474);
 
@@ -85205,6 +82908,871 @@ exports.subscribeVercelAiOrchestrionChannels = subscribeVercelAiOrchestrionChann
 
 /***/ }),
 
+/***/ 6110:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+/* eslint-env browser */
+
+/**
+ * This is the web browser implementation of `debug()`.
+ */
+
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+exports.storage = localstorage();
+exports.destroy = (() => {
+	let warned = false;
+
+	return () => {
+		if (!warned) {
+			warned = true;
+			console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
+		}
+	};
+})();
+
+/**
+ * Colors.
+ */
+
+exports.colors = [
+	'#0000CC',
+	'#0000FF',
+	'#0033CC',
+	'#0033FF',
+	'#0066CC',
+	'#0066FF',
+	'#0099CC',
+	'#0099FF',
+	'#00CC00',
+	'#00CC33',
+	'#00CC66',
+	'#00CC99',
+	'#00CCCC',
+	'#00CCFF',
+	'#3300CC',
+	'#3300FF',
+	'#3333CC',
+	'#3333FF',
+	'#3366CC',
+	'#3366FF',
+	'#3399CC',
+	'#3399FF',
+	'#33CC00',
+	'#33CC33',
+	'#33CC66',
+	'#33CC99',
+	'#33CCCC',
+	'#33CCFF',
+	'#6600CC',
+	'#6600FF',
+	'#6633CC',
+	'#6633FF',
+	'#66CC00',
+	'#66CC33',
+	'#9900CC',
+	'#9900FF',
+	'#9933CC',
+	'#9933FF',
+	'#99CC00',
+	'#99CC33',
+	'#CC0000',
+	'#CC0033',
+	'#CC0066',
+	'#CC0099',
+	'#CC00CC',
+	'#CC00FF',
+	'#CC3300',
+	'#CC3333',
+	'#CC3366',
+	'#CC3399',
+	'#CC33CC',
+	'#CC33FF',
+	'#CC6600',
+	'#CC6633',
+	'#CC9900',
+	'#CC9933',
+	'#CCCC00',
+	'#CCCC33',
+	'#FF0000',
+	'#FF0033',
+	'#FF0066',
+	'#FF0099',
+	'#FF00CC',
+	'#FF00FF',
+	'#FF3300',
+	'#FF3333',
+	'#FF3366',
+	'#FF3399',
+	'#FF33CC',
+	'#FF33FF',
+	'#FF6600',
+	'#FF6633',
+	'#FF9900',
+	'#FF9933',
+	'#FFCC00',
+	'#FFCC33'
+];
+
+/**
+ * Currently only WebKit-based Web Inspectors, Firefox >= v31,
+ * and the Firebug extension (any Firefox version) are known
+ * to support "%c" CSS customizations.
+ *
+ * TODO: add a `localStorage` variable to explicitly enable/disable colors
+ */
+
+// eslint-disable-next-line complexity
+function useColors() {
+	// NB: In an Electron preload script, document will be defined but not fully
+	// initialized. Since we know we're in Chrome, we'll just detect this case
+	// explicitly
+	if (typeof window !== 'undefined' && window.process && (window.process.type === 'renderer' || window.process.__nwjs)) {
+		return true;
+	}
+
+	// Internet Explorer and Edge do not support colors.
+	if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+		return false;
+	}
+
+	let m;
+
+	// Is webkit? http://stackoverflow.com/a/16459606/376773
+	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
+	// eslint-disable-next-line no-return-assign
+	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
+		// Is firebug? http://stackoverflow.com/a/398120/376773
+		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
+		// Is firefox >= v31?
+		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+		(typeof navigator !== 'undefined' && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31) ||
+		// Double check webkit in userAgent just in case we are in a worker
+		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
+}
+
+/**
+ * Colorize log arguments if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+	args[0] = (this.useColors ? '%c' : '') +
+		this.namespace +
+		(this.useColors ? ' %c' : ' ') +
+		args[0] +
+		(this.useColors ? '%c ' : ' ') +
+		'+' + module.exports.humanize(this.diff);
+
+	if (!this.useColors) {
+		return;
+	}
+
+	const c = 'color: ' + this.color;
+	args.splice(1, 0, c, 'color: inherit');
+
+	// The final "%c" is somewhat tricky, because there could be other
+	// arguments passed either before or after the %c, so we need to
+	// figure out the correct index to insert the CSS into
+	let index = 0;
+	let lastC = 0;
+	args[0].replace(/%[a-zA-Z%]/g, match => {
+		if (match === '%%') {
+			return;
+		}
+		index++;
+		if (match === '%c') {
+			// We only are interested in the *last* %c
+			// (the user may have provided their own)
+			lastC = index;
+		}
+	});
+
+	args.splice(lastC, 0, c);
+}
+
+/**
+ * Invokes `console.debug()` when available.
+ * No-op when `console.debug` is not a "function".
+ * If `console.debug` is not available, falls back
+ * to `console.log`.
+ *
+ * @api public
+ */
+exports.log = console.debug || console.log || (() => {});
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+function save(namespaces) {
+	try {
+		if (namespaces) {
+			exports.storage.setItem('debug', namespaces);
+		} else {
+			exports.storage.removeItem('debug');
+		}
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+function load() {
+	let r;
+	try {
+		r = exports.storage.getItem('debug') || exports.storage.getItem('DEBUG') ;
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+
+	// If debug isn't set in LS, and we're in Electron, try to load $DEBUG
+	if (!r && typeof process !== 'undefined' && 'env' in process) {
+		r = process.env.DEBUG;
+	}
+
+	return r;
+}
+
+/**
+ * Localstorage attempts to return the localstorage.
+ *
+ * This is necessary because safari throws
+ * when a user disables cookies/localstorage
+ * and you attempt to access it.
+ *
+ * @return {LocalStorage}
+ * @api private
+ */
+
+function localstorage() {
+	try {
+		// TVMLKit (Apple TV JS Runtime) does not have a window object, just localStorage in the global context
+		// The Browser also has localStorage in the global context.
+		return localStorage;
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+}
+
+module.exports = __nccwpck_require__(40897)(exports);
+
+const {formatters} = module.exports;
+
+/**
+ * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
+ */
+
+formatters.j = function (v) {
+	try {
+		return JSON.stringify(v);
+	} catch (error) {
+		return '[UnexpectedJSONParseError]: ' + error.message;
+	}
+};
+
+
+/***/ }),
+
+/***/ 40897:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+
+/**
+ * This is the common logic for both the Node.js and web browser
+ * implementations of `debug()`.
+ */
+
+function setup(env) {
+	createDebug.debug = createDebug;
+	createDebug.default = createDebug;
+	createDebug.coerce = coerce;
+	createDebug.disable = disable;
+	createDebug.enable = enable;
+	createDebug.enabled = enabled;
+	createDebug.humanize = __nccwpck_require__(70744);
+	createDebug.destroy = destroy;
+
+	Object.keys(env).forEach(key => {
+		createDebug[key] = env[key];
+	});
+
+	/**
+	* The currently active debug mode names, and names to skip.
+	*/
+
+	createDebug.names = [];
+	createDebug.skips = [];
+
+	/**
+	* Map of special "%n" handling functions, for the debug "format" argument.
+	*
+	* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
+	*/
+	createDebug.formatters = {};
+
+	/**
+	* Selects a color for a debug namespace
+	* @param {String} namespace The namespace string for the debug instance to be colored
+	* @return {Number|String} An ANSI color code for the given namespace
+	* @api private
+	*/
+	function selectColor(namespace) {
+		let hash = 0;
+
+		for (let i = 0; i < namespace.length; i++) {
+			hash = ((hash << 5) - hash) + namespace.charCodeAt(i);
+			hash |= 0; // Convert to 32bit integer
+		}
+
+		return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+	}
+	createDebug.selectColor = selectColor;
+
+	/**
+	* Create a debugger with the given `namespace`.
+	*
+	* @param {String} namespace
+	* @return {Function}
+	* @api public
+	*/
+	function createDebug(namespace) {
+		let prevTime;
+		let enableOverride = null;
+		let namespacesCache;
+		let enabledCache;
+
+		function debug(...args) {
+			// Disabled?
+			if (!debug.enabled) {
+				return;
+			}
+
+			const self = debug;
+
+			// Set `diff` timestamp
+			const curr = Number(new Date());
+			const ms = curr - (prevTime || curr);
+			self.diff = ms;
+			self.prev = prevTime;
+			self.curr = curr;
+			prevTime = curr;
+
+			args[0] = createDebug.coerce(args[0]);
+
+			if (typeof args[0] !== 'string') {
+				// Anything else let's inspect with %O
+				args.unshift('%O');
+			}
+
+			// Apply any `formatters` transformations
+			let index = 0;
+			args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+				// If we encounter an escaped % then don't increase the array index
+				if (match === '%%') {
+					return '%';
+				}
+				index++;
+				const formatter = createDebug.formatters[format];
+				if (typeof formatter === 'function') {
+					const val = args[index];
+					match = formatter.call(self, val);
+
+					// Now we need to remove `args[index]` since it's inlined in the `format`
+					args.splice(index, 1);
+					index--;
+				}
+				return match;
+			});
+
+			// Apply env-specific formatting (colors, etc.)
+			createDebug.formatArgs.call(self, args);
+
+			const logFn = self.log || createDebug.log;
+			logFn.apply(self, args);
+		}
+
+		debug.namespace = namespace;
+		debug.useColors = createDebug.useColors();
+		debug.color = createDebug.selectColor(namespace);
+		debug.extend = extend;
+		debug.destroy = createDebug.destroy; // XXX Temporary. Will be removed in the next major release.
+
+		Object.defineProperty(debug, 'enabled', {
+			enumerable: true,
+			configurable: false,
+			get: () => {
+				if (enableOverride !== null) {
+					return enableOverride;
+				}
+				if (namespacesCache !== createDebug.namespaces) {
+					namespacesCache = createDebug.namespaces;
+					enabledCache = createDebug.enabled(namespace);
+				}
+
+				return enabledCache;
+			},
+			set: v => {
+				enableOverride = v;
+			}
+		});
+
+		// Env-specific initialization logic for debug instances
+		if (typeof createDebug.init === 'function') {
+			createDebug.init(debug);
+		}
+
+		return debug;
+	}
+
+	function extend(namespace, delimiter) {
+		const newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
+		newDebug.log = this.log;
+		return newDebug;
+	}
+
+	/**
+	* Enables a debug mode by namespaces. This can include modes
+	* separated by a colon and wildcards.
+	*
+	* @param {String} namespaces
+	* @api public
+	*/
+	function enable(namespaces) {
+		createDebug.save(namespaces);
+		createDebug.namespaces = namespaces;
+
+		createDebug.names = [];
+		createDebug.skips = [];
+
+		const split = (typeof namespaces === 'string' ? namespaces : '')
+			.trim()
+			.replace(/\s+/g, ',')
+			.split(',')
+			.filter(Boolean);
+
+		for (const ns of split) {
+			if (ns[0] === '-') {
+				createDebug.skips.push(ns.slice(1));
+			} else {
+				createDebug.names.push(ns);
+			}
+		}
+	}
+
+	/**
+	 * Checks if the given string matches a namespace template, honoring
+	 * asterisks as wildcards.
+	 *
+	 * @param {String} search
+	 * @param {String} template
+	 * @return {Boolean}
+	 */
+	function matchesTemplate(search, template) {
+		let searchIndex = 0;
+		let templateIndex = 0;
+		let starIndex = -1;
+		let matchIndex = 0;
+
+		while (searchIndex < search.length) {
+			if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === '*')) {
+				// Match character or proceed with wildcard
+				if (template[templateIndex] === '*') {
+					starIndex = templateIndex;
+					matchIndex = searchIndex;
+					templateIndex++; // Skip the '*'
+				} else {
+					searchIndex++;
+					templateIndex++;
+				}
+			} else if (starIndex !== -1) { // eslint-disable-line no-negated-condition
+				// Backtrack to the last '*' and try to match more characters
+				templateIndex = starIndex + 1;
+				matchIndex++;
+				searchIndex = matchIndex;
+			} else {
+				return false; // No match
+			}
+		}
+
+		// Handle trailing '*' in template
+		while (templateIndex < template.length && template[templateIndex] === '*') {
+			templateIndex++;
+		}
+
+		return templateIndex === template.length;
+	}
+
+	/**
+	* Disable debug output.
+	*
+	* @return {String} namespaces
+	* @api public
+	*/
+	function disable() {
+		const namespaces = [
+			...createDebug.names,
+			...createDebug.skips.map(namespace => '-' + namespace)
+		].join(',');
+		createDebug.enable('');
+		return namespaces;
+	}
+
+	/**
+	* Returns true if the given mode name is enabled, false otherwise.
+	*
+	* @param {String} name
+	* @return {Boolean}
+	* @api public
+	*/
+	function enabled(name) {
+		for (const skip of createDebug.skips) {
+			if (matchesTemplate(name, skip)) {
+				return false;
+			}
+		}
+
+		for (const ns of createDebug.names) {
+			if (matchesTemplate(name, ns)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	* Coerce `val`.
+	*
+	* @param {Mixed} val
+	* @return {Mixed}
+	* @api private
+	*/
+	function coerce(val) {
+		if (val instanceof Error) {
+			return val.stack || val.message;
+		}
+		return val;
+	}
+
+	/**
+	* XXX DO NOT USE. This is a temporary stub function.
+	* XXX It WILL be removed in the next major release.
+	*/
+	function destroy() {
+		console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
+	}
+
+	createDebug.enable(createDebug.load());
+
+	return createDebug;
+}
+
+module.exports = setup;
+
+
+/***/ }),
+
+/***/ 2830:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+/**
+ * Detect Electron renderer / nwjs process, which is node, but we should
+ * treat as a browser.
+ */
+
+if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
+	module.exports = __nccwpck_require__(6110);
+} else {
+	module.exports = __nccwpck_require__(95108);
+}
+
+
+/***/ }),
+
+/***/ 95108:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+/**
+ * Module dependencies.
+ */
+
+const tty = __nccwpck_require__(52018);
+const util = __nccwpck_require__(39023);
+
+/**
+ * This is the Node.js implementation of `debug()`.
+ */
+
+exports.init = init;
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+exports.destroy = util.deprecate(
+	() => {},
+	'Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.'
+);
+
+/**
+ * Colors.
+ */
+
+exports.colors = [6, 2, 3, 4, 5, 1];
+
+try {
+	// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
+	// eslint-disable-next-line import/no-extraneous-dependencies
+	const supportsColor = __nccwpck_require__(21450);
+
+	if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+		exports.colors = [
+			20,
+			21,
+			26,
+			27,
+			32,
+			33,
+			38,
+			39,
+			40,
+			41,
+			42,
+			43,
+			44,
+			45,
+			56,
+			57,
+			62,
+			63,
+			68,
+			69,
+			74,
+			75,
+			76,
+			77,
+			78,
+			79,
+			80,
+			81,
+			92,
+			93,
+			98,
+			99,
+			112,
+			113,
+			128,
+			129,
+			134,
+			135,
+			148,
+			149,
+			160,
+			161,
+			162,
+			163,
+			164,
+			165,
+			166,
+			167,
+			168,
+			169,
+			170,
+			171,
+			172,
+			173,
+			178,
+			179,
+			184,
+			185,
+			196,
+			197,
+			198,
+			199,
+			200,
+			201,
+			202,
+			203,
+			204,
+			205,
+			206,
+			207,
+			208,
+			209,
+			214,
+			215,
+			220,
+			221
+		];
+	}
+} catch (error) {
+	// Swallow - we only care if `supports-color` is available; it doesn't have to be.
+}
+
+/**
+ * Build up the default `inspectOpts` object from the environment variables.
+ *
+ *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
+ */
+
+exports.inspectOpts = Object.keys(process.env).filter(key => {
+	return /^debug_/i.test(key);
+}).reduce((obj, key) => {
+	// Camel-case
+	const prop = key
+		.substring(6)
+		.toLowerCase()
+		.replace(/_([a-z])/g, (_, k) => {
+			return k.toUpperCase();
+		});
+
+	// Coerce string value into JS value
+	let val = process.env[key];
+	if (/^(yes|on|true|enabled)$/i.test(val)) {
+		val = true;
+	} else if (/^(no|off|false|disabled)$/i.test(val)) {
+		val = false;
+	} else if (val === 'null') {
+		val = null;
+	} else {
+		val = Number(val);
+	}
+
+	obj[prop] = val;
+	return obj;
+}, {});
+
+/**
+ * Is stdout a TTY? Colored output is enabled when `true`.
+ */
+
+function useColors() {
+	return 'colors' in exports.inspectOpts ?
+		Boolean(exports.inspectOpts.colors) :
+		tty.isatty(process.stderr.fd);
+}
+
+/**
+ * Adds ANSI color escape codes if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+	const {namespace: name, useColors} = this;
+
+	if (useColors) {
+		const c = this.color;
+		const colorCode = '\u001B[3' + (c < 8 ? c : '8;5;' + c);
+		const prefix = `  ${colorCode};1m${name} \u001B[0m`;
+
+		args[0] = prefix + args[0].split('\n').join('\n' + prefix);
+		args.push(colorCode + 'm+' + module.exports.humanize(this.diff) + '\u001B[0m');
+	} else {
+		args[0] = getDate() + name + ' ' + args[0];
+	}
+}
+
+function getDate() {
+	if (exports.inspectOpts.hideDate) {
+		return '';
+	}
+	return new Date().toISOString() + ' ';
+}
+
+/**
+ * Invokes `util.formatWithOptions()` with the specified arguments and writes to stderr.
+ */
+
+function log(...args) {
+	return process.stderr.write(util.formatWithOptions(exports.inspectOpts, ...args) + '\n');
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+function save(namespaces) {
+	if (namespaces) {
+		process.env.DEBUG = namespaces;
+	} else {
+		// If you set a process.env field to null or undefined, it gets cast to the
+		// string 'null' or 'undefined'. Just delete instead.
+		delete process.env.DEBUG;
+	}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function load() {
+	return process.env.DEBUG;
+}
+
+/**
+ * Init logic for `debug` instances.
+ *
+ * Create a new `inspectOpts` object in case `useColors` is set
+ * differently for a particular `debug` instance.
+ */
+
+function init(debug) {
+	debug.inspectOpts = {};
+
+	const keys = Object.keys(exports.inspectOpts);
+	for (let i = 0; i < keys.length; i++) {
+		debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
+	}
+}
+
+module.exports = __nccwpck_require__(40897)(exports);
+
+const {formatters} = module.exports;
+
+/**
+ * Map %o to `util.inspect()`, all on a single line.
+ */
+
+formatters.o = function (v) {
+	this.inspectOpts.colors = this.useColors;
+	return util.inspect(v, this.inspectOpts)
+		.split('\n')
+		.map(str => str.trim())
+		.join(' ');
+};
+
+/**
+ * Map %O to `util.inspect()`, allowing multiple lines if needed.
+ */
+
+formatters.O = function (v) {
+	this.inspectOpts.colors = this.useColors;
+	return util.inspect(v, this.inspectOpts);
+};
+
+
+/***/ }),
+
 /***/ 83813:
 /***/ ((module) => {
 
@@ -85967,8 +84535,8 @@ function plural(ms, msAbs, n, name) {
 
 const path = __nccwpck_require__(16928)
 const Module = __nccwpck_require__(73339)
-const debug = __nccwpck_require__(59935)('require-in-the-middle')
-const moduleDetailsFromPath = __nccwpck_require__(67573)
+const debug = __nccwpck_require__(2830)('require-in-the-middle')
+const moduleDetailsFromPath = __nccwpck_require__(4886)
 
 // Using the default export is discouraged, but kept for backward compatibility.
 // Use this instead:
@@ -86300,897 +84868,6 @@ function resolveModuleName (stat) {
 
 /***/ }),
 
-/***/ 23507:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/* eslint-env browser */
-
-/**
- * This is the web browser implementation of `debug()`.
- */
-
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.storage = localstorage();
-exports.destroy = (() => {
-	let warned = false;
-
-	return () => {
-		if (!warned) {
-			warned = true;
-			console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
-		}
-	};
-})();
-
-/**
- * Colors.
- */
-
-exports.colors = [
-	'#0000CC',
-	'#0000FF',
-	'#0033CC',
-	'#0033FF',
-	'#0066CC',
-	'#0066FF',
-	'#0099CC',
-	'#0099FF',
-	'#00CC00',
-	'#00CC33',
-	'#00CC66',
-	'#00CC99',
-	'#00CCCC',
-	'#00CCFF',
-	'#3300CC',
-	'#3300FF',
-	'#3333CC',
-	'#3333FF',
-	'#3366CC',
-	'#3366FF',
-	'#3399CC',
-	'#3399FF',
-	'#33CC00',
-	'#33CC33',
-	'#33CC66',
-	'#33CC99',
-	'#33CCCC',
-	'#33CCFF',
-	'#6600CC',
-	'#6600FF',
-	'#6633CC',
-	'#6633FF',
-	'#66CC00',
-	'#66CC33',
-	'#9900CC',
-	'#9900FF',
-	'#9933CC',
-	'#9933FF',
-	'#99CC00',
-	'#99CC33',
-	'#CC0000',
-	'#CC0033',
-	'#CC0066',
-	'#CC0099',
-	'#CC00CC',
-	'#CC00FF',
-	'#CC3300',
-	'#CC3333',
-	'#CC3366',
-	'#CC3399',
-	'#CC33CC',
-	'#CC33FF',
-	'#CC6600',
-	'#CC6633',
-	'#CC9900',
-	'#CC9933',
-	'#CCCC00',
-	'#CCCC33',
-	'#FF0000',
-	'#FF0033',
-	'#FF0066',
-	'#FF0099',
-	'#FF00CC',
-	'#FF00FF',
-	'#FF3300',
-	'#FF3333',
-	'#FF3366',
-	'#FF3399',
-	'#FF33CC',
-	'#FF33FF',
-	'#FF6600',
-	'#FF6633',
-	'#FF9900',
-	'#FF9933',
-	'#FFCC00',
-	'#FFCC33'
-];
-
-/**
- * Currently only WebKit-based Web Inspectors, Firefox >= v31,
- * and the Firebug extension (any Firefox version) are known
- * to support "%c" CSS customizations.
- *
- * TODO: add a `localStorage` variable to explicitly enable/disable colors
- */
-
-// eslint-disable-next-line complexity
-function useColors() {
-	// NB: In an Electron preload script, document will be defined but not fully
-	// initialized. Since we know we're in Chrome, we'll just detect this case
-	// explicitly
-	if (typeof window !== 'undefined' && window.process && (window.process.type === 'renderer' || window.process.__nwjs)) {
-		return true;
-	}
-
-	// Internet Explorer and Edge do not support colors.
-	if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
-		return false;
-	}
-
-	let m;
-
-	// Is webkit? http://stackoverflow.com/a/16459606/376773
-	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
-	// eslint-disable-next-line no-return-assign
-	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
-		// Is firebug? http://stackoverflow.com/a/398120/376773
-		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
-		// Is firefox >= v31?
-		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-		(typeof navigator !== 'undefined' && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31) ||
-		// Double check webkit in userAgent just in case we are in a worker
-		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
-}
-
-/**
- * Colorize log arguments if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	args[0] = (this.useColors ? '%c' : '') +
-		this.namespace +
-		(this.useColors ? ' %c' : ' ') +
-		args[0] +
-		(this.useColors ? '%c ' : ' ') +
-		'+' + module.exports.humanize(this.diff);
-
-	if (!this.useColors) {
-		return;
-	}
-
-	const c = 'color: ' + this.color;
-	args.splice(1, 0, c, 'color: inherit');
-
-	// The final "%c" is somewhat tricky, because there could be other
-	// arguments passed either before or after the %c, so we need to
-	// figure out the correct index to insert the CSS into
-	let index = 0;
-	let lastC = 0;
-	args[0].replace(/%[a-zA-Z%]/g, match => {
-		if (match === '%%') {
-			return;
-		}
-		index++;
-		if (match === '%c') {
-			// We only are interested in the *last* %c
-			// (the user may have provided their own)
-			lastC = index;
-		}
-	});
-
-	args.splice(lastC, 0, c);
-}
-
-/**
- * Invokes `console.debug()` when available.
- * No-op when `console.debug` is not a "function".
- * If `console.debug` is not available, falls back
- * to `console.log`.
- *
- * @api public
- */
-exports.log = console.debug || console.log || (() => {});
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	try {
-		if (namespaces) {
-			exports.storage.setItem('debug', namespaces);
-		} else {
-			exports.storage.removeItem('debug');
-		}
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-function load() {
-	let r;
-	try {
-		r = exports.storage.getItem('debug');
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-
-	// If debug isn't set in LS, and we're in Electron, try to load $DEBUG
-	if (!r && typeof process !== 'undefined' && 'env' in process) {
-		r = process.env.DEBUG;
-	}
-
-	return r;
-}
-
-/**
- * Localstorage attempts to return the localstorage.
- *
- * This is necessary because safari throws
- * when a user disables cookies/localstorage
- * and you attempt to access it.
- *
- * @return {LocalStorage}
- * @api private
- */
-
-function localstorage() {
-	try {
-		// TVMLKit (Apple TV JS Runtime) does not have a window object, just localStorage in the global context
-		// The Browser also has localStorage in the global context.
-		return localStorage;
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-module.exports = __nccwpck_require__(26254)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
- */
-
-formatters.j = function (v) {
-	try {
-		return JSON.stringify(v);
-	} catch (error) {
-		return '[UnexpectedJSONParseError]: ' + error.message;
-	}
-};
-
-
-/***/ }),
-
-/***/ 26254:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-
-/**
- * This is the common logic for both the Node.js and web browser
- * implementations of `debug()`.
- */
-
-function setup(env) {
-	createDebug.debug = createDebug;
-	createDebug.default = createDebug;
-	createDebug.coerce = coerce;
-	createDebug.disable = disable;
-	createDebug.enable = enable;
-	createDebug.enabled = enabled;
-	createDebug.humanize = __nccwpck_require__(70744);
-	createDebug.destroy = destroy;
-
-	Object.keys(env).forEach(key => {
-		createDebug[key] = env[key];
-	});
-
-	/**
-	* The currently active debug mode names, and names to skip.
-	*/
-
-	createDebug.names = [];
-	createDebug.skips = [];
-
-	/**
-	* Map of special "%n" handling functions, for the debug "format" argument.
-	*
-	* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
-	*/
-	createDebug.formatters = {};
-
-	/**
-	* Selects a color for a debug namespace
-	* @param {String} namespace The namespace string for the debug instance to be colored
-	* @return {Number|String} An ANSI color code for the given namespace
-	* @api private
-	*/
-	function selectColor(namespace) {
-		let hash = 0;
-
-		for (let i = 0; i < namespace.length; i++) {
-			hash = ((hash << 5) - hash) + namespace.charCodeAt(i);
-			hash |= 0; // Convert to 32bit integer
-		}
-
-		return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
-	}
-	createDebug.selectColor = selectColor;
-
-	/**
-	* Create a debugger with the given `namespace`.
-	*
-	* @param {String} namespace
-	* @return {Function}
-	* @api public
-	*/
-	function createDebug(namespace) {
-		let prevTime;
-		let enableOverride = null;
-		let namespacesCache;
-		let enabledCache;
-
-		function debug(...args) {
-			// Disabled?
-			if (!debug.enabled) {
-				return;
-			}
-
-			const self = debug;
-
-			// Set `diff` timestamp
-			const curr = Number(new Date());
-			const ms = curr - (prevTime || curr);
-			self.diff = ms;
-			self.prev = prevTime;
-			self.curr = curr;
-			prevTime = curr;
-
-			args[0] = createDebug.coerce(args[0]);
-
-			if (typeof args[0] !== 'string') {
-				// Anything else let's inspect with %O
-				args.unshift('%O');
-			}
-
-			// Apply any `formatters` transformations
-			let index = 0;
-			args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
-				// If we encounter an escaped % then don't increase the array index
-				if (match === '%%') {
-					return '%';
-				}
-				index++;
-				const formatter = createDebug.formatters[format];
-				if (typeof formatter === 'function') {
-					const val = args[index];
-					match = formatter.call(self, val);
-
-					// Now we need to remove `args[index]` since it's inlined in the `format`
-					args.splice(index, 1);
-					index--;
-				}
-				return match;
-			});
-
-			// Apply env-specific formatting (colors, etc.)
-			createDebug.formatArgs.call(self, args);
-
-			const logFn = self.log || createDebug.log;
-			logFn.apply(self, args);
-		}
-
-		debug.namespace = namespace;
-		debug.useColors = createDebug.useColors();
-		debug.color = createDebug.selectColor(namespace);
-		debug.extend = extend;
-		debug.destroy = createDebug.destroy; // XXX Temporary. Will be removed in the next major release.
-
-		Object.defineProperty(debug, 'enabled', {
-			enumerable: true,
-			configurable: false,
-			get: () => {
-				if (enableOverride !== null) {
-					return enableOverride;
-				}
-				if (namespacesCache !== createDebug.namespaces) {
-					namespacesCache = createDebug.namespaces;
-					enabledCache = createDebug.enabled(namespace);
-				}
-
-				return enabledCache;
-			},
-			set: v => {
-				enableOverride = v;
-			}
-		});
-
-		// Env-specific initialization logic for debug instances
-		if (typeof createDebug.init === 'function') {
-			createDebug.init(debug);
-		}
-
-		return debug;
-	}
-
-	function extend(namespace, delimiter) {
-		const newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
-		newDebug.log = this.log;
-		return newDebug;
-	}
-
-	/**
-	* Enables a debug mode by namespaces. This can include modes
-	* separated by a colon and wildcards.
-	*
-	* @param {String} namespaces
-	* @api public
-	*/
-	function enable(namespaces) {
-		createDebug.save(namespaces);
-		createDebug.namespaces = namespaces;
-
-		createDebug.names = [];
-		createDebug.skips = [];
-
-		const split = (typeof namespaces === 'string' ? namespaces : '')
-			.trim()
-			.replace(' ', ',')
-			.split(',')
-			.filter(Boolean);
-
-		for (const ns of split) {
-			if (ns[0] === '-') {
-				createDebug.skips.push(ns.slice(1));
-			} else {
-				createDebug.names.push(ns);
-			}
-		}
-	}
-
-	/**
-	 * Checks if the given string matches a namespace template, honoring
-	 * asterisks as wildcards.
-	 *
-	 * @param {String} search
-	 * @param {String} template
-	 * @return {Boolean}
-	 */
-	function matchesTemplate(search, template) {
-		let searchIndex = 0;
-		let templateIndex = 0;
-		let starIndex = -1;
-		let matchIndex = 0;
-
-		while (searchIndex < search.length) {
-			if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === '*')) {
-				// Match character or proceed with wildcard
-				if (template[templateIndex] === '*') {
-					starIndex = templateIndex;
-					matchIndex = searchIndex;
-					templateIndex++; // Skip the '*'
-				} else {
-					searchIndex++;
-					templateIndex++;
-				}
-			} else if (starIndex !== -1) { // eslint-disable-line no-negated-condition
-				// Backtrack to the last '*' and try to match more characters
-				templateIndex = starIndex + 1;
-				matchIndex++;
-				searchIndex = matchIndex;
-			} else {
-				return false; // No match
-			}
-		}
-
-		// Handle trailing '*' in template
-		while (templateIndex < template.length && template[templateIndex] === '*') {
-			templateIndex++;
-		}
-
-		return templateIndex === template.length;
-	}
-
-	/**
-	* Disable debug output.
-	*
-	* @return {String} namespaces
-	* @api public
-	*/
-	function disable() {
-		const namespaces = [
-			...createDebug.names,
-			...createDebug.skips.map(namespace => '-' + namespace)
-		].join(',');
-		createDebug.enable('');
-		return namespaces;
-	}
-
-	/**
-	* Returns true if the given mode name is enabled, false otherwise.
-	*
-	* @param {String} name
-	* @return {Boolean}
-	* @api public
-	*/
-	function enabled(name) {
-		for (const skip of createDebug.skips) {
-			if (matchesTemplate(name, skip)) {
-				return false;
-			}
-		}
-
-		for (const ns of createDebug.names) {
-			if (matchesTemplate(name, ns)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	* Coerce `val`.
-	*
-	* @param {Mixed} val
-	* @return {Mixed}
-	* @api private
-	*/
-	function coerce(val) {
-		if (val instanceof Error) {
-			return val.stack || val.message;
-		}
-		return val;
-	}
-
-	/**
-	* XXX DO NOT USE. This is a temporary stub function.
-	* XXX It WILL be removed in the next major release.
-	*/
-	function destroy() {
-		console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
-	}
-
-	createDebug.enable(createDebug.load());
-
-	return createDebug;
-}
-
-module.exports = setup;
-
-
-/***/ }),
-
-/***/ 59935:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/**
- * Detect Electron renderer / nwjs process, which is node, but we should
- * treat as a browser.
- */
-
-if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
-	module.exports = __nccwpck_require__(23507);
-} else {
-	module.exports = __nccwpck_require__(87567);
-}
-
-
-/***/ }),
-
-/***/ 87567:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/**
- * Module dependencies.
- */
-
-const tty = __nccwpck_require__(52018);
-const util = __nccwpck_require__(39023);
-
-/**
- * This is the Node.js implementation of `debug()`.
- */
-
-exports.init = init;
-exports.log = log;
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.destroy = util.deprecate(
-	() => {},
-	'Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.'
-);
-
-/**
- * Colors.
- */
-
-exports.colors = [6, 2, 3, 4, 5, 1];
-
-try {
-	// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
-	// eslint-disable-next-line import/no-extraneous-dependencies
-	const supportsColor = __nccwpck_require__(21450);
-
-	if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
-		exports.colors = [
-			20,
-			21,
-			26,
-			27,
-			32,
-			33,
-			38,
-			39,
-			40,
-			41,
-			42,
-			43,
-			44,
-			45,
-			56,
-			57,
-			62,
-			63,
-			68,
-			69,
-			74,
-			75,
-			76,
-			77,
-			78,
-			79,
-			80,
-			81,
-			92,
-			93,
-			98,
-			99,
-			112,
-			113,
-			128,
-			129,
-			134,
-			135,
-			148,
-			149,
-			160,
-			161,
-			162,
-			163,
-			164,
-			165,
-			166,
-			167,
-			168,
-			169,
-			170,
-			171,
-			172,
-			173,
-			178,
-			179,
-			184,
-			185,
-			196,
-			197,
-			198,
-			199,
-			200,
-			201,
-			202,
-			203,
-			204,
-			205,
-			206,
-			207,
-			208,
-			209,
-			214,
-			215,
-			220,
-			221
-		];
-	}
-} catch (error) {
-	// Swallow - we only care if `supports-color` is available; it doesn't have to be.
-}
-
-/**
- * Build up the default `inspectOpts` object from the environment variables.
- *
- *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
- */
-
-exports.inspectOpts = Object.keys(process.env).filter(key => {
-	return /^debug_/i.test(key);
-}).reduce((obj, key) => {
-	// Camel-case
-	const prop = key
-		.substring(6)
-		.toLowerCase()
-		.replace(/_([a-z])/g, (_, k) => {
-			return k.toUpperCase();
-		});
-
-	// Coerce string value into JS value
-	let val = process.env[key];
-	if (/^(yes|on|true|enabled)$/i.test(val)) {
-		val = true;
-	} else if (/^(no|off|false|disabled)$/i.test(val)) {
-		val = false;
-	} else if (val === 'null') {
-		val = null;
-	} else {
-		val = Number(val);
-	}
-
-	obj[prop] = val;
-	return obj;
-}, {});
-
-/**
- * Is stdout a TTY? Colored output is enabled when `true`.
- */
-
-function useColors() {
-	return 'colors' in exports.inspectOpts ?
-		Boolean(exports.inspectOpts.colors) :
-		tty.isatty(process.stderr.fd);
-}
-
-/**
- * Adds ANSI color escape codes if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	const {namespace: name, useColors} = this;
-
-	if (useColors) {
-		const c = this.color;
-		const colorCode = '\u001B[3' + (c < 8 ? c : '8;5;' + c);
-		const prefix = `  ${colorCode};1m${name} \u001B[0m`;
-
-		args[0] = prefix + args[0].split('\n').join('\n' + prefix);
-		args.push(colorCode + 'm+' + module.exports.humanize(this.diff) + '\u001B[0m');
-	} else {
-		args[0] = getDate() + name + ' ' + args[0];
-	}
-}
-
-function getDate() {
-	if (exports.inspectOpts.hideDate) {
-		return '';
-	}
-	return new Date().toISOString() + ' ';
-}
-
-/**
- * Invokes `util.formatWithOptions()` with the specified arguments and writes to stderr.
- */
-
-function log(...args) {
-	return process.stderr.write(util.formatWithOptions(exports.inspectOpts, ...args) + '\n');
-}
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	if (namespaces) {
-		process.env.DEBUG = namespaces;
-	} else {
-		// If you set a process.env field to null or undefined, it gets cast to the
-		// string 'null' or 'undefined'. Just delete instead.
-		delete process.env.DEBUG;
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-
-function load() {
-	return process.env.DEBUG;
-}
-
-/**
- * Init logic for `debug` instances.
- *
- * Create a new `inspectOpts` object in case `useColors` is set
- * differently for a particular `debug` instance.
- */
-
-function init(debug) {
-	debug.inspectOpts = {};
-
-	const keys = Object.keys(exports.inspectOpts);
-	for (let i = 0; i < keys.length; i++) {
-		debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
-	}
-}
-
-module.exports = __nccwpck_require__(26254)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %o to `util.inspect()`, all on a single line.
- */
-
-formatters.o = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts)
-		.split('\n')
-		.map(str => str.trim())
-		.join(' ');
-};
-
-/**
- * Map %O to `util.inspect()`, allowing multiple lines if needed.
- */
-
-formatters.O = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts);
-};
-
-
-/***/ }),
-
-/***/ 67573:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var path = __nccwpck_require__(16928)
-
-module.exports = function (file) {
-  var segments = file.split(path.sep)
-  var index = segments.lastIndexOf('node_modules')
-  if (index === -1) return
-  if (!segments[index + 1]) return
-  var scoped = segments[index + 1][0] === '@'
-  var name = scoped ? segments[index + 1] + '/' + segments[index + 2] : segments[index + 1]
-  var offset = scoped ? 3 : 2
-  return {
-    name: name,
-    basedir: segments.slice(0, index + offset).join(path.sep),
-    path: segments.slice(index + offset).join(path.sep)
-  }
-}
-
-
-/***/ }),
-
 /***/ 21450:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -87352,7 +85029,7 @@ var net = __nccwpck_require__(69278);
 var tls = __nccwpck_require__(64756);
 var http = __nccwpck_require__(58611);
 var https = __nccwpck_require__(65692);
-var events = __nccwpck_require__(2053);
+var events = __nccwpck_require__(24434);
 var assert = __nccwpck_require__(42613);
 var util = __nccwpck_require__(39023);
 
@@ -90590,11 +88267,77 @@ class Request {
     }
   }
 
-  onUpgrade (statusCode, headers, socket) {
+  /**
+   * @param {number|null} statusCode
+   * @param {Buffer[]|null} headers
+   * @param {import('node:stream').Duplex} socket
+   * @param {string} [statusText]
+   */
+  onUpgrade (statusCode, headers, socket, statusText = '') {
+    this.onFinally()
+
     assert(!this.aborted)
     assert(!this.completed)
 
-    return this[kHandler].onUpgrade(statusCode, headers, socket)
+    if (statusCode !== null) {
+      this.#publishUpgradeHeaders(statusCode, headers, statusText)
+    }
+
+    const result = this[kHandler].onUpgrade(statusCode, headers, socket)
+
+    if (!this.aborted) {
+      this.completed = true
+      if (statusCode !== null) {
+        this.#publishUpgradeTrailers()
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * @param {number} statusCode
+   * @param {import('node:http2').IncomingHttpHeaders} headers
+   * @param {(headers: import('node:http2').IncomingHttpHeaders) => Buffer[]} parseHeaders
+   * @param {string} [statusText]
+   */
+  onUpgradeResponse (statusCode, headers, parseHeaders, statusText = '') {
+    assert(!this.aborted)
+    assert(this.completed)
+
+    if (channels.headers.hasSubscribers) {
+      this.#publishUpgradeHeaders(statusCode, parseHeaders(headers), statusText)
+    }
+    this.#publishUpgradeTrailers()
+  }
+
+  /**
+   * @param {Error} error
+   */
+  onUpgradeError (error) {
+    assert(!this.aborted)
+    assert(this.completed)
+
+    if (channels.error.hasSubscribers) {
+      channels.error.publish({ request: this, error })
+    }
+  }
+
+  /**
+   * @param {number} statusCode
+   * @param {Buffer[]} headers
+   * @param {string} statusText
+   */
+  #publishUpgradeHeaders (statusCode, headers, statusText) {
+    if (channels.headers.hasSubscribers) {
+      channels.headers.publish({ request: this, response: { statusCode, headers, statusText } })
+    }
+  }
+
+  #publishUpgradeTrailers () {
+    if (channels.trailers.hasSubscribers) {
+      channels.trailers.publish({ request: this, trailers: [] })
+    }
   }
 
   onComplete (trailers) {
@@ -91735,7 +89478,7 @@ function defaultFactory (origin, opts) {
 }
 
 class Agent extends DispatcherBase {
-  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
+  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, tls, ...options } = {}) {
     if (typeof factory !== 'function') {
       throw new InvalidArgumentError('factory must be a function.')
     }
@@ -91754,11 +89497,15 @@ class Agent extends DispatcherBase {
       connect = { ...connect }
     }
 
+    if (tls && typeof tls !== 'function') {
+      tls = { ...tls }
+    }
+
     this[kInterceptors] = options.interceptors?.Agent && Array.isArray(options.interceptors.Agent)
       ? options.interceptors.Agent
       : [createRedirectInterceptor({ maxRedirections })]
 
-    this[kOptions] = { ...util.deepClone(options), connect }
+    this[kOptions] = { ...util.deepClone(options), connect, tls }
     this[kOptions].interceptors = options.interceptors
       ? { ...options.interceptors }
       : undefined
@@ -92498,7 +90245,7 @@ class Parser {
   }
 
   onUpgrade (head) {
-    const { upgrade, client, socket, headers, statusCode } = this
+    const { upgrade, client, socket, headers, statusCode, statusText } = this
 
     assert(upgrade)
     assert(client[kSocket] === socket)
@@ -92533,9 +90280,10 @@ class Parser {
     client.emit('disconnect', client[kUrl], [client], new InformationalError('upgrade'))
 
     try {
-      request.onUpgrade(statusCode, headers, socket)
-    } catch (err) {
-      util.destroy(socket, err)
+      request.onUpgrade(statusCode, headers, socket, statusText)
+    } catch (error) {
+      util.errorRequest(client, request, error)
+      util.destroy(socket, error)
     }
 
     client[kResume]()
@@ -92792,8 +90540,6 @@ async function connectH1 (client, socket) {
   socket[kParser] = new Parser(client, socket, llhttpInstance)
 
   addListener(socket, 'error', function (err) {
-    assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
     const parser = this[kParser]
 
     // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
@@ -92942,7 +90688,7 @@ async function connectH1 (client, socket) {
 
 function clearIdleSocketValidation (socket) {
   if (socket[kIdleSocketValidationTimeout]) {
-    clearTimeout(socket[kIdleSocketValidationTimeout])
+    clearImmediate(socket[kIdleSocketValidationTimeout])
     socket[kIdleSocketValidationTimeout] = null
   }
 
@@ -92951,15 +90697,23 @@ function clearIdleSocketValidation (socket) {
 
 function scheduleIdleSocketValidation (client, socket) {
   socket[kIdleSocketValidation] = 1
-  socket[kIdleSocketValidationTimeout] = setTimeout(() => {
+  // Yield to the check phase (after poll) so unsolicited bytes / FIN / RST
+  // already pending on this idle keep-alive socket are processed before the
+  // next request is written (GHSA-35p6-xmwp-9g52).
+  //
+  // setTimeout(0) pays Node's ~1ms timer floor on every sequential reuse
+  // (#5493). setImmediate avoids that, but an *unref'd* Immediate lets poll
+  // block for ~500ms when the event loop is otherwise idle (#5600 / #5606).
+  // A ref'd Immediate both keeps the pending request alive and makes poll
+  // return immediately — the hybrid those issues asked for.
+  socket[kIdleSocketValidationTimeout] = setImmediate(() => {
     socket[kIdleSocketValidationTimeout] = null
     socket[kIdleSocketValidation] = 2
 
     if (client[kSocket] === socket && !socket.destroyed) {
       client[kResume]()
     }
-  }, 0)
-  socket[kIdleSocketValidationTimeout].unref?.()
+  })
 }
 
 /**
@@ -93108,12 +90862,22 @@ function writeH1 (client, request) {
   const socket = client[kSocket]
   clearIdleSocketValidation(socket)
 
-  const abort = (err) => {
-    if (request.aborted || request.completed) {
+  /**
+   * @param {Error} [error]
+   */
+  const abort = (error) => {
+    if (request.aborted) {
       return
     }
 
-    util.errorRequest(client, request, err || new RequestAbortedError())
+    if (request.completed) {
+      if (request.upgrade || request.method === 'CONNECT') {
+        util.destroy(socket, new InformationalError('aborted'))
+      }
+      return
+    }
+
+    util.errorRequest(client, request, error || new RequestAbortedError())
 
     util.destroy(body)
     util.destroy(socket, new InformationalError('aborted'))
@@ -93571,6 +91335,7 @@ module.exports = connectH1
 
 
 const assert = __nccwpck_require__(34589)
+const { errorMonitor } = __nccwpck_require__(78474)
 const { pipeline } = __nccwpck_require__(57075)
 const util = __nccwpck_require__(3440)
 const {
@@ -93647,6 +91412,15 @@ function parseH2Headers (headers) {
   return result
 }
 
+/**
+ * @param {import('node:http2').IncomingHttpHeaders} headers
+ * @returns {Buffer[]}
+ */
+function parseH2ResponseHeaders (headers) {
+  const { [HTTP2_HEADER_STATUS]: _statusCode, ...realHeaders } = headers
+  return parseH2Headers(realHeaders)
+}
+
 async function connectH2 (client, socket) {
   client[kSocket] = socket
 
@@ -93696,8 +91470,6 @@ async function connectH2 (client, socket) {
   socket[kHTTP2Session] = session
 
   util.addListener(socket, 'error', function (err) {
-    assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
     this[kError] = err
 
     this[kClient][kOnError](err)
@@ -93771,8 +91543,6 @@ function resumeH2 (client) {
 }
 
 function onHttp2SessionError (err) {
-  assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
   this[kSocket][kError] = err
   this[kClient][kOnError](err)
 }
@@ -93867,22 +91637,32 @@ function writeH2 (client, request) {
   headers[HTTP2_HEADER_AUTHORITY] = host || `${hostname}${port ? `:${port}` : ''}`
   headers[HTTP2_HEADER_METHOD] = method
 
-  const abort = (err) => {
-    if (request.aborted || request.completed) {
+  /**
+   * @param {Error} [error]
+   */
+  const abort = (error) => {
+    if (request.aborted) {
       return
     }
 
-    err = err || new RequestAbortedError()
+    if (request.completed) {
+      if (method === 'CONNECT' && stream != null) {
+        util.destroy(stream, error || new RequestAbortedError())
+      }
+      return
+    }
 
-    util.errorRequest(client, request, err)
+    error = error || new RequestAbortedError()
+
+    util.errorRequest(client, request, error)
 
     if (stream != null) {
-      util.destroy(stream, err)
+      util.destroy(stream, error)
     }
 
     // We do not destroy the socket as we can continue using the session
     // the stream get's destroyed and the session remains to create new streams
-    util.destroy(body, err)
+    util.destroy(body, error)
     client[kQueue][client[kRunningIdx]++] = null
     client[kResume]()
   }
@@ -93901,25 +91681,57 @@ function writeH2 (client, request) {
 
   if (method === 'CONNECT') {
     session.ref()
-    // We are already connected, streams are pending, first request
-    // will create a new stream. We trigger a request to create the stream and wait until
-    // `ready` event is triggered
     // We disabled endStream to allow the user to write to the stream
     stream = session.request(headers, { endStream: false, signal })
+    let upgradeResponseFinished = false
 
-    if (stream.id && !stream.pending) {
-      request.onUpgrade(null, null, stream)
-      ++session[kOpenStreams]
-      client[kQueue][client[kRunningIdx]++] = null
-    } else {
-      stream.once('ready', () => {
-        request.onUpgrade(null, null, stream)
-        ++session[kOpenStreams]
-        client[kQueue][client[kRunningIdx]++] = null
-      })
+    /**
+     * @param {import('node:http2').IncomingHttpHeaders} headers
+     */
+    const onResponse = (headers) => {
+      upgradeResponseFinished = true
+      stream.off(errorMonitor, onUpgradeError)
+      request.onUpgradeResponse(Number(headers[HTTP2_HEADER_STATUS]), headers, parseH2ResponseHeaders)
     }
 
+    /**
+     * @param {Error} error
+     */
+    const onUpgradeError = (error) => {
+      upgradeResponseFinished = true
+      stream.off('response', onResponse)
+      request.onUpgradeError(error)
+    }
+
+    const onReady = () => {
+      try {
+        request.onUpgrade(null, null, stream)
+      } catch (error) {
+        stream.off('response', onResponse)
+        abort(error)
+        return
+      }
+
+      if (request.aborted) {
+        return
+      }
+
+      stream.off('error', abort)
+      stream.once(errorMonitor, onUpgradeError)
+      client[kQueue][client[kRunningIdx]++] = null
+    }
+
+    stream.once('response', onResponse)
+    stream.once('error', abort)
+    ++session[kOpenStreams]
+    onReady()
+
     stream.once('close', () => {
+      if (!upgradeResponseFinished && request.completed) {
+        stream.off('response', onResponse)
+        stream.off(errorMonitor, onUpgradeError)
+        request.onUpgradeError(new InformationalError(`HTTP/2: "stream error" received - code ${stream.rstCode}`))
+      }
       session[kOpenStreams] -= 1
       if (session[kOpenStreams] === 0) session.unref()
     })
@@ -94429,9 +92241,10 @@ class Client extends DispatcherBase {
     // h2
     maxConcurrentStreams,
     allowH2,
-    webSocket
+    webSocket,
+    eventSource
   } = {}) {
-    super({ webSocket })
+    super({ webSocket, eventSource })
 
     if (keepAlive !== undefined) {
       throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -94953,6 +92766,7 @@ module.exports = Client
 "use strict";
 
 
+const buffer = __nccwpck_require__(4573)
 const Dispatcher = __nccwpck_require__(30883)
 const {
   ClientDestroyedError,
@@ -94965,6 +92779,7 @@ const kOnDestroyed = Symbol('onDestroyed')
 const kOnClosed = Symbol('onClosed')
 const kInterceptedDispatch = Symbol('Intercepted Dispatch')
 const kWebSocketOptions = Symbol('webSocketOptions')
+const kEventSourceOptions = Symbol('eventSourceOptions')
 
 class DispatcherBase extends Dispatcher {
   constructor (opts) {
@@ -94975,12 +92790,19 @@ class DispatcherBase extends Dispatcher {
     this[kClosed] = false
     this[kOnClosed] = []
     this[kWebSocketOptions] = opts?.webSocket ?? {}
+    this[kEventSourceOptions] = opts?.eventSource ?? {}
   }
 
   get webSocketOptions () {
     return {
       maxFragments: this[kWebSocketOptions].maxFragments ?? 131072,
       maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024
+    }
+  }
+
+  get eventSourceOptions () {
+    return {
+      maxEventSize: this[kEventSourceOptions].maxEventSize ?? buffer.kStringMaxLength
     }
   }
 
@@ -96631,6 +94453,7 @@ class RetryHandler {
     this.end = null
     this.etag = null
     this.resume = null
+    this.headersSent = false
 
     // Handle possible onConnect duplication
     this.handler.onConnect(reason => {
@@ -96641,6 +94464,20 @@ class RetryHandler {
         this.reason = reason
       }
     })
+  }
+
+  checkpointResponseEnd (headers, resume) {
+    if (this.end == null && this.opts.method !== 'HEAD') {
+      const contentLength = headers['content-length']
+      this.end = contentLength != null ? Number(contentLength) - 1 : null
+
+      assert(
+        this.end == null || Number.isFinite(this.end),
+        'invalid content-length'
+      )
+    }
+
+    this.resume = this.end != null ? resume : null
   }
 
   onRequestSent () {
@@ -96731,7 +94568,12 @@ class RetryHandler {
     this.retryCount += 1
 
     if (statusCode >= 300) {
-      if (this.retryOpts.statusCodes.includes(statusCode) === false) {
+      // Only expose a response if no earlier attempt has reached the caller.
+      // Otherwise abort this attempt so the error settles the existing body
+      // instead of replacing it with a new response.
+      if (!this.headersSent && this.retryOpts.statusCodes.includes(statusCode) === false) {
+        this.headersSent = true
+        this.checkpointResponseEnd(headers, resume)
         return this.handler.onHeaders(
           statusCode,
           rawHeaders,
@@ -96800,8 +94642,15 @@ class RetryHandler {
 
       const { start, size, end = size - 1 } = contentRange
 
-      assert(this.start === start, 'content-range mismatch')
-      assert(this.end == null || this.end === end, 'content-range mismatch')
+      if (this.start !== start || (this.end != null && this.end !== end)) {
+        this.abort(
+          new RequestRetryError('Content-Range mismatch', statusCode, {
+            headers,
+            data: { count: this.retryCount }
+          })
+        )
+        return false
+      }
 
       this.resume = resume
       return true
@@ -96813,6 +94662,7 @@ class RetryHandler {
         const range = parseRangeHeader(headers['content-range'])
 
         if (range == null) {
+          this.headersSent = true
           return this.handler.onHeaders(
             statusCode,
             rawHeaders,
@@ -96851,6 +94701,7 @@ class RetryHandler {
       )
 
       this.resume = resume
+      this.headersSent = true
       this.etag = headers.etag != null ? headers.etag : null
 
       // Weak etags are not useful for comparison nor cache
@@ -96890,7 +94741,7 @@ class RetryHandler {
   }
 
   onError (err) {
-    if (this.aborted || isDisturbed(this.opts.body)) {
+    if (this.aborted || isDisturbed(this.opts.body) || (this.headersSent && this.resume == null)) {
       return this.handler.onError(err)
     }
 
@@ -101352,6 +99203,7 @@ module.exports = {
 
 "use strict";
 
+const buffer = __nccwpck_require__(4573)
 const { Transform } = __nccwpck_require__(57075)
 const { isASCIINumber, isValidLastEventId } = __nccwpck_require__(94811)
 
@@ -101375,6 +99227,63 @@ const COLON = 0x3A
  * @type {32} SPACE
  */
 const SPACE = 0x20
+
+const defaultMaxEventSize = buffer.kStringMaxLength
+
+const DATA = Buffer.from('data')
+const EVENT = Buffer.from('event')
+const ID = Buffer.from('id')
+const RETRY = Buffer.from('retry')
+
+// Each data field creates a string node, and each unconsumed input chunk keeps
+// a Buffer wrapper. The absolute ceiling protects the large default byte limit.
+const minParserItems = 1024
+const maxParserItems = 131072
+const bytesPerParserItem = 128
+
+function isASCIINumberBytes (buffer, start) {
+  if (start >= buffer.length) {
+    return false
+  }
+
+  for (let i = start; i < buffer.length; i++) {
+    if (buffer[i] < 0x30 || buffer[i] > 0x39) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function isValidLastEventIdBytes (buffer, start) {
+  for (let i = start; i < buffer.length; i++) {
+    if (buffer[i] === 0x00) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function isFieldName (line, length, field) {
+  if (length !== field.length) {
+    return false
+  }
+
+  for (let i = 0; i < length; i++) {
+    if (line[i] !== field[i]) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function createMaxEventSizeExceededError () {
+  const error = new Error('EventSource message size exceeded')
+  error.aborted = false
+  return error
+}
 
 /**
  * @typedef {object} EventSourceStreamEvent
@@ -101416,11 +99325,21 @@ class EventSourceStream extends Transform {
   eventEndCheck = false
 
   /**
-   * @type {Buffer}
+   * @type {Buffer[]}
    */
-  buffer = null
+  chunks = []
 
+  chunkIndex = 0
   pos = 0
+  lineChunkIndex = 0
+  linePos = 0
+  lineLength = 0
+  eventSize = 0
+  eventFieldSizes = { data: 0, event: 0, id: 0, retry: 0 }
+  dataLineCount = 0
+  maxEventSize
+  maxDataLines
+  maxBufferedChunks
 
   event = {
     data: undefined,
@@ -101431,6 +99350,7 @@ class EventSourceStream extends Transform {
 
   /**
    * @param {object} options
+   * @param {number} [options.maxEventSize]
    * @param {eventSourceSettings} options.eventSourceSettings
    * @param {Function} [options.push]
    */
@@ -101442,6 +99362,12 @@ class EventSourceStream extends Transform {
     super(options)
 
     this.state = options.eventSourceSettings || {}
+    this.maxEventSize = options.maxEventSize ?? defaultMaxEventSize
+    const parserItemLimit = this.maxEventSize > 0
+      ? Math.min(maxParserItems, Math.max(minParserItems, Math.floor(this.maxEventSize / bytesPerParserItem)))
+      : 0
+    this.maxDataLines = parserItemLimit
+    this.maxBufferedChunks = parserItemLimit
     if (options.push) {
       this.push = options.push
     }
@@ -101459,92 +99385,28 @@ class EventSourceStream extends Transform {
       return
     }
 
-    // Cache the chunk in the buffer, as the data might not be complete while
-    // processing it
-    // TODO: Investigate if there is a more performant way to handle
-    // incoming chunks
-    // see: https://github.com/nodejs/undici/issues/2630
-    if (this.buffer) {
-      this.buffer = Buffer.concat([this.buffer, chunk])
-    } else {
-      this.buffer = chunk
+    // A leading line ending can immediately release the currently buffered
+    // line, even when it uses the final allowed chunk slot.
+    if (this.maxEventSize > 0 &&
+        this.chunks.length >= this.maxBufferedChunks &&
+        chunk[0] !== LF && chunk[0] !== CR) {
+      callback(createMaxEventSizeExceededError())
+      return
     }
+    this.chunks.push(chunk)
 
     // Strip leading byte-order-mark if we opened the stream and started
     // the processing of the incoming data
     if (this.checkBOM) {
-      switch (this.buffer.length) {
-        case 1:
-          // Check if the first byte is the same as the first byte of the BOM
-          if (this.buffer[0] === BOM[0]) {
-            // If it is, we need to wait for more data
-            callback()
-            return
-          }
-          // Set the checkBOM flag to false as we don't need to check for the
-          // BOM anymore
-          this.checkBOM = false
-
-          // The buffer only contains one byte so we need to wait for more data
-          callback()
-          return
-        case 2:
-          // Check if the first two bytes are the same as the first two bytes
-          // of the BOM
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1]
-          ) {
-            // If it is, we need to wait for more data, because the third byte
-            // is needed to determine if it is the BOM or not
-            callback()
-            return
-          }
-
-          // Set the checkBOM flag to false as we don't need to check for the
-          // BOM anymore
-          this.checkBOM = false
-          break
-        case 3:
-          // Check if the first three bytes are the same as the first three
-          // bytes of the BOM
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1] &&
-            this.buffer[2] === BOM[2]
-          ) {
-            // If it is, we can drop the buffered data, as it is only the BOM
-            this.buffer = Buffer.alloc(0)
-            // Set the checkBOM flag to false as we don't need to check for the
-            // BOM anymore
-            this.checkBOM = false
-
-            // Await more data
-            callback()
-            return
-          }
-          // If it is not the BOM, we can start processing the data
-          this.checkBOM = false
-          break
-        default:
-          // The buffer is longer than 3 bytes, so we can drop the BOM if it is
-          // present
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1] &&
-            this.buffer[2] === BOM[2]
-          ) {
-            // Remove the BOM from the buffer
-            this.buffer = this.buffer.subarray(3)
-          }
-
-          // Set the checkBOM flag to false as we don't need to check for the
-          this.checkBOM = false
-          break
+      if (this.handleBOM()) {
+        callback()
+        return
       }
     }
 
-    while (this.pos < this.buffer.length) {
+    while (this.hasCurrentByte()) {
+      const byte = this.currentByte()
+
       // If the previous line ended with an end-of-line, we need to check
       // if the next character is also an end-of-line.
       if (this.eventEndCheck) {
@@ -101557,10 +99419,9 @@ class EventSourceStream extends Transform {
         if (this.crlfCheck) {
           // If the current character is a line feed, we can remove it
           // from the buffer and reset the crlfCheck flag
-          if (this.buffer[this.pos] === LF) {
-            this.buffer = this.buffer.subarray(this.pos + 1)
-            this.pos = 0
+          if (byte === LF) {
             this.crlfCheck = false
+            this.consumeCurrentByte()
 
             // It is possible that the line feed is not the end of the
             // event. We need to check if the next character is an
@@ -101576,19 +99437,17 @@ class EventSourceStream extends Transform {
           this.crlfCheck = false
         }
 
-        if (this.buffer[this.pos] === LF || this.buffer[this.pos] === CR) {
+        if (byte === LF || byte === CR) {
           // If the current character is a carriage return, we need to
           // set the crlfCheck flag to true, as we need to check if the
           // next character is a line feed so we can remove it from the
           // buffer
-          if (this.buffer[this.pos] === CR) {
+          if (byte === CR) {
             this.crlfCheck = true
           }
 
-          this.buffer = this.buffer.subarray(this.pos + 1)
-          this.pos = 0
-          if (
-            this.event.data !== undefined || this.event.event || this.event.id || this.event.retry) {
+          this.consumeCurrentByte()
+          if (this.hasPendingEvent()) {
             this.processEvent(this.event)
           }
           this.clearEvent()
@@ -101602,22 +99461,23 @@ class EventSourceStream extends Transform {
 
       // If the current character is an end-of-line, we can process the
       // line
-      if (this.buffer[this.pos] === LF || this.buffer[this.pos] === CR) {
+      if (byte === LF || byte === CR) {
         // If the current character is a carriage return, we need to
         // set the crlfCheck flag to true, as we need to check if the
         // next character is a line feed
-        if (this.buffer[this.pos] === CR) {
+        if (byte === CR) {
           this.crlfCheck = true
         }
 
         // In any case, we can process the line as we reached an
         // end-of-line character
-        this.parseLine(this.buffer.subarray(0, this.pos), this.event)
-
-        // Remove the processed line from the buffer
-        this.buffer = this.buffer.subarray(this.pos + 1)
-        // Reset the position as we removed the processed line from the buffer
-        this.pos = 0
+        try {
+          this.parseLine(this.readLine(), this.event)
+        } catch (error) {
+          callback(error)
+          return
+        }
+        this.consumeCurrentByte()
         // A line was processed and this could be the end of the event. We need
         // to check if the next line is empty to determine if the event is
         // finished.
@@ -101625,15 +99485,28 @@ class EventSourceStream extends Transform {
         continue
       }
 
-      this.pos++
+      // readLine() is only called after CR or LF. Reject an unfinished line
+      // before it can retain an unbounded number of decoded chunks. The seven
+      // extra bytes allow the longest field prefix ("event: " or "retry: ").
+      if (this.maxEventSize > 0 && ++this.lineLength > this.maxEventSize + 7) {
+        callback(createMaxEventSizeExceededError())
+        return
+      }
+      this.advanceCursor()
     }
 
     callback()
   }
 
+  _destroy (error, callback) {
+    this.chunks.length = 0
+    this.clearEvent()
+    super._destroy(error, callback)
+  }
+
   /**
    * @param {Buffer} line
-   * @param {EventStreamEvent} event
+   * @param {EventSourceStreamEvent} event
    */
   parseLine (line, event) {
     // If the line is empty (a blank line)
@@ -101650,65 +99523,72 @@ class EventSourceStream extends Transform {
       return
     }
 
-    let field = ''
-    let value = ''
+    let fieldLength = line.length
+    let valueStart = line.length
 
     // If the line contains a U+003A COLON character (:)
     if (colonPosition !== -1) {
-      // Collect the characters on the line before the first U+003A COLON
-      // character (:), and let field be that string.
-      // TODO: Investigate if there is a more performant way to extract the
-      // field
-      // see: https://github.com/nodejs/undici/issues/2630
-      field = line.subarray(0, colonPosition).toString('utf8')
+      fieldLength = colonPosition
 
       // Collect the characters on the line after the first U+003A COLON
       // character (:), and let value be that string.
       // If value starts with a U+0020 SPACE character, remove it from value.
-      let valueStart = colonPosition + 1
+      valueStart = colonPosition + 1
       if (line[valueStart] === SPACE) {
         ++valueStart
       }
-      // TODO: Investigate if there is a more performant way to extract the
-      // value
-      // see: https://github.com/nodejs/undici/issues/2630
-      value = line.subarray(valueStart).toString('utf8')
-
-      // Otherwise, the string is not empty but does not contain a U+003A COLON
-      // character (:)
-    } else {
-      // Process the field using the steps described below, using the whole
-      // line as the field name, and the empty string as the field value.
-      field = line.toString('utf8')
-      value = ''
     }
 
-    // Modify the event with the field name and value. The value is also
-    // decoded as UTF-8
-    switch (field) {
-      case 'data':
-        if (event[field] === undefined) {
-          event[field] = value
-        } else {
-          event[field] += `\n${value}`
-        }
-        break
-      case 'retry':
-        if (isASCIINumber(value)) {
-          event[field] = value
-        }
-        break
-      case 'id':
-        if (isValidLastEventId(value)) {
-          event[field] = value
-        }
-        break
-      case 'event':
-        if (value.length > 0) {
-          event[field] = value
-        }
-        break
+    if (isFieldName(line, fieldLength, DATA)) {
+      if (this.maxEventSize > 0 && this.dataLineCount >= this.maxDataLines) {
+        throw createMaxEventSizeExceededError()
+      }
+      const valueBytes = line.length - valueStart
+      const dataSize = this.eventFieldSizes.data + (event.data === undefined ? 0 : 1) + valueBytes
+      this.setEventFieldSize('data', dataSize)
+
+      const value = line.toString('utf8', valueStart)
+
+      if (event.data === undefined) {
+        event.data = value
+      } else {
+        event.data += `\n${value}`
+      }
+      this.dataLineCount++
+      return
     }
+
+    if (isFieldName(line, fieldLength, RETRY)) {
+      if (isASCIINumberBytes(line, valueStart)) {
+        this.setEventFieldSize('retry', line.length - valueStart)
+        event.retry = line.toString('utf8', valueStart)
+      }
+      return
+    }
+
+    if (isFieldName(line, fieldLength, ID)) {
+      if (isValidLastEventIdBytes(line, valueStart)) {
+        this.setEventFieldSize('id', line.length - valueStart)
+        event.id = line.toString('utf8', valueStart)
+      }
+      return
+    }
+
+    if (isFieldName(line, fieldLength, EVENT)) {
+      if (valueStart < line.length) {
+        this.setEventFieldSize('event', line.length - valueStart)
+        event.event = line.toString('utf8', valueStart)
+      }
+    }
+  }
+
+  setEventFieldSize (field, size) {
+    const eventSize = this.eventSize - this.eventFieldSizes[field] + size
+    if (this.maxEventSize > 0 && eventSize > this.maxEventSize) {
+      throw createMaxEventSizeExceededError()
+    }
+    this.eventSize = eventSize
+    this.eventFieldSizes[field] = size
   }
 
   /**
@@ -101737,12 +99617,159 @@ class EventSourceStream extends Transform {
   }
 
   clearEvent () {
-    this.event = {
-      data: undefined,
-      event: undefined,
-      id: undefined,
-      retry: undefined
+    this.event.data = undefined
+    this.event.event = undefined
+    this.event.id = undefined
+    this.event.retry = undefined
+    this.eventSize = 0
+    this.dataLineCount = 0
+    this.eventFieldSizes.data = 0
+    this.eventFieldSizes.event = 0
+    this.eventFieldSizes.id = 0
+    this.eventFieldSizes.retry = 0
+  }
+
+  hasPendingEvent () {
+    return this.event.data !== undefined ||
+      this.event.event !== undefined ||
+      this.event.id !== undefined ||
+      this.event.retry !== undefined
+  }
+
+  hasCurrentByte () {
+    return this.chunkIndex < this.chunks.length &&
+      this.pos < this.chunks[this.chunkIndex].length
+  }
+
+  currentByte () {
+    return this.chunks[this.chunkIndex][this.pos]
+  }
+
+  consumeCurrentByte () {
+    this.advanceCursor()
+    this.syncLineStartToCursor()
+  }
+
+  advanceCursor () {
+    this.pos++
+
+    while (this.chunkIndex < this.chunks.length && this.pos >= this.chunks[this.chunkIndex].length) {
+      this.chunkIndex++
+      this.pos = 0
     }
+  }
+
+  syncLineStartToCursor () {
+    this.lineChunkIndex = this.chunkIndex
+    this.linePos = this.pos
+    this.lineLength = 0
+    this.dropConsumedChunks()
+  }
+
+  dropConsumedChunks () {
+    if (this.lineChunkIndex > 0) {
+      const consumed = this.lineChunkIndex
+      this.chunks.splice(0, consumed)
+      this.lineChunkIndex = 0
+      this.chunkIndex -= consumed
+    }
+
+    if (this.chunkIndex === this.chunks.length) {
+      this.chunks.length = 0
+      this.chunkIndex = 0
+      this.pos = 0
+      this.lineChunkIndex = 0
+      this.linePos = 0
+    }
+  }
+
+  readLine () {
+    if (this.lineChunkIndex === this.chunkIndex) {
+      return this.chunks[this.chunkIndex].subarray(this.linePos, this.pos)
+    }
+
+    const chunks = []
+    let length = 0
+
+    for (let i = this.lineChunkIndex; i <= this.chunkIndex; i++) {
+      const chunk = this.chunks[i]
+      const start = i === this.lineChunkIndex ? this.linePos : 0
+      const end = i === this.chunkIndex ? this.pos : chunk.length
+      const slice = chunk.subarray(start, end)
+      length += slice.length
+      chunks.push(slice)
+    }
+
+    return Buffer.concat(chunks, length)
+  }
+
+  peekBufferedByte (offset) {
+    let chunkIndex = this.lineChunkIndex
+    let pos = this.linePos
+
+    while (chunkIndex < this.chunks.length) {
+      const chunk = this.chunks[chunkIndex]
+      const remaining = chunk.length - pos
+
+      if (offset < remaining) {
+        return chunk[pos + offset]
+      }
+
+      offset -= remaining
+      chunkIndex++
+      pos = 0
+    }
+  }
+
+  discardLeadingBytes (count) {
+    while (count > 0 && this.lineChunkIndex < this.chunks.length) {
+      const chunk = this.chunks[this.lineChunkIndex]
+      const remaining = chunk.length - this.linePos
+
+      if (count < remaining) {
+        this.linePos += count
+        count = 0
+      } else {
+        count -= remaining
+        this.lineChunkIndex++
+        this.linePos = 0
+      }
+    }
+
+    this.chunkIndex = this.lineChunkIndex
+    this.pos = this.linePos
+    this.dropConsumedChunks()
+  }
+
+  handleBOM () {
+    const first = this.peekBufferedByte(0)
+    const second = this.peekBufferedByte(1)
+    const third = this.peekBufferedByte(2)
+
+    if (second === undefined) {
+      if (first === BOM[0]) {
+        return true
+      }
+
+      this.checkBOM = false
+      return true
+    }
+
+    if (third === undefined) {
+      if (first === BOM[0] && second === BOM[1]) {
+        return true
+      }
+
+      this.checkBOM = false
+      return false
+    }
+
+    if (first === BOM[0] && second === BOM[1] && third === BOM[2]) {
+      this.discardLeadingBytes(3)
+    }
+
+    this.checkBOM = false
+    return !this.hasCurrentByte()
   }
 }
 
@@ -101770,6 +99797,7 @@ const { isNetworkError } = __nccwpck_require__(99051)
 const { delay } = __nccwpck_require__(94811)
 const { kEnumerableProperty } = __nccwpck_require__(3440)
 const { environmentSettingsObject } = __nccwpck_require__(73168)
+const { getGlobalDispatcher } = __nccwpck_require__(32581)
 
 let experimentalWarned = false
 
@@ -102051,6 +100079,7 @@ class EventSource extends EventTarget {
 
       const eventSourceStream = new EventSourceStream({
         eventSourceSettings: this.#state,
+        maxEventSize: this.#dispatcher.eventSourceOptions?.maxEventSize,
         push: (event) => {
           this.dispatchEvent(createFastMessageEvent(
             event.type,
@@ -102229,7 +100258,8 @@ webidl.converters.EventSourceInitDict = webidl.dictionaryConverter([
   },
   {
     key: 'dispatcher', // undici only
-    converter: webidl.converters.any
+    converter: webidl.converters.any,
+    defaultValue: () => getGlobalDispatcher()
   }
 ])
 
@@ -107336,8 +105366,10 @@ async function httpNetworkFetch (
   // 19. Run these steps in parallel:
 
   //    1. Run these steps, but abort when fetchParams is canceled:
-  fetchParams.controller.onAborted = onAborted
-  fetchParams.controller.on('terminated', onAborted)
+  if (!fetchParams.controller.resume) {
+    fetchParams.controller.on('terminated', onAborted)
+  }
+
   fetchParams.controller.resume = async () => {
     // 1. While true
     while (true) {
@@ -107506,8 +105538,6 @@ async function httpNetworkFetch (
           }
           location = headersList.get('location', true)
 
-          this.body = new Readable({ read: resume })
-
           const decoders = []
 
           const willFollow = location && request.redirect === 'follow' &&
@@ -107525,7 +105555,7 @@ async function httpNetworkFetch (
             // CVE fix similar to urllib3 (GHSA-gm62-xv2j-4w53) and curl (CVE-2022-32206).
             const maxContentEncodings = 5
             if (codings.length > maxContentEncodings) {
-              reject(new Error(`too many content-encodings in response: ${codings.length}, maximum allowed is ${maxContentEncodings}`))
+              this.abort(new Error(`too many content-encodings in response: ${codings.length}, maximum allowed is ${maxContentEncodings}`))
               return true
             }
 
@@ -107557,6 +105587,8 @@ async function httpNetworkFetch (
               }
             }
           }
+
+          this.body = new Readable({ read: resume })
 
           const onError = this.onError.bind(this)
 
@@ -107602,10 +105634,6 @@ async function httpNetworkFetch (
         onComplete () {
           if (this.abort) {
             fetchParams.controller.off('terminated', this.abort)
-          }
-
-          if (fetchParams.controller.onAborted) {
-            fetchParams.controller.off('terminated', fetchParams.controller.onAborted)
           }
 
           fetchParams.controller.ended = true
@@ -113034,7 +111062,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
         // is specified, the server needs to include the same field and one of
         // the selected subprotocol values in its response for the connection to
         // be established.
-        if (!requestProtocols.includes(secProtocol)) {
+        if (requestProtocols === null || !requestProtocols.includes(secProtocol)) {
           failWebsocketConnection(ws, 'Protocol was not set in the opening handshake.')
           return
         }
@@ -113799,7 +111827,12 @@ class PerMessageDeflate {
 
         if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
           callback(new MessageSizeExceededError())
+          // The inflater may still hold buffered input that can emit a late
+          // zlib error. Remove the data listener, then deterministically stop
+          // the stream so a subsequent 'error' cannot fire without a listener
+          // (which would terminate the process as an unhandled error event).
           this.#inflate.removeAllListeners()
+          this.#inflate.destroy()
           this.#inflate = null
           return
         }
@@ -114093,6 +112126,20 @@ class ByteParser extends Writable {
         if (isControlFrame(this.#info.opcode)) {
           this.#loop = this.parseControlFrame(body)
           this.#state = parserStates.INFO
+
+          // If the automatic PONG/CLOSE reply filled the socket's write buffer,
+          // stop parsing and resume on drain so a PING flood cannot grow the
+          // outbound queue without bound.
+          const socket = this.ws[kResponse].socket
+          if (this.#loop && socket.writableNeedDrain) {
+            this.#loop = false
+            socket.once('drain', () => {
+              if (this.destroyed) return
+              this.#loop = true
+              this.run(callback)
+            })
+            return
+          }
         } else {
           if (!this.#info.compressed) {
             if (!this.writeFragments(body)) {
@@ -115493,13 +113540,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -115650,13 +113707,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -115889,13 +113956,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -115909,7 +113986,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isTelemetryEnabled = exports.isSelfHosted = exports.safeFlush = exports.traceStep = exports.updateProgress = exports.withTelemetry = void 0;
+exports.withTelemetry = withTelemetry;
+exports.updateProgress = updateProgress;
+exports.traceStep = traceStep;
+exports.safeFlush = safeFlush;
+exports.isSelfHosted = isSelfHosted;
+exports.isTelemetryEnabled = isTelemetryEnabled;
 const ciOptions = __importStar(__nccwpck_require__(88381));
 const Sentry = __importStar(__nccwpck_require__(1102));
 const package_json_1 = __importDefault(__nccwpck_require__(8330));
@@ -115958,14 +114040,12 @@ function withTelemetry(options, callback) {
         }
     });
 }
-exports.withTelemetry = withTelemetry;
 /**
  * Sets the `progress` tag to a given step.
  */
 function updateProgress(step) {
     Sentry.setTag('progress', step);
 }
-exports.updateProgress = updateProgress;
 /**
  * Wraps the given callback in a span.
  */
@@ -115973,7 +114053,6 @@ function traceStep(step, callback) {
     updateProgress(step);
     return Sentry.startSpan({ name: step, op: 'action.step' }, () => callback());
 }
-exports.traceStep = traceStep;
 /**
  * Flushing can fail, we never want to crash because of telemetry.
  */
@@ -115988,7 +114067,6 @@ function safeFlush() {
         }
     });
 }
-exports.safeFlush = safeFlush;
 /**
  * Check whether the user is self-hosting Sentry.
  */
@@ -115996,14 +114074,12 @@ function isSelfHosted() {
     const url = new URL(process.env['SENTRY_URL'] || `https://${SENTRY_SAAS_HOSTNAME}`);
     return url.hostname !== SENTRY_SAAS_HOSTNAME;
 }
-exports.isSelfHosted = isSelfHosted;
 /**
  * Determine if telemetry should be enabled.
  */
 function isTelemetryEnabled() {
     return !ciOptions.getBooleanOption('disable_telemetry', false) && !isSelfHosted();
 }
-exports.isTelemetryEnabled = isTelemetryEnabled;
 
 
 /***/ }),
@@ -116048,7 +114124,7 @@ module.exports = require("diagnostics_channel");
 
 /***/ }),
 
-/***/ 2053:
+/***/ 24434:
 /***/ ((module) => {
 
 "use strict";
@@ -116413,6 +114489,2337 @@ module.exports = require("util");
 
 "use strict";
 module.exports = require("worker_threads");
+
+/***/ }),
+
+/***/ 8352:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_diag = __nccwpck_require__(49982);
+const require_NoopContextManager = __nccwpck_require__(10006);
+//#region src/api/context.ts
+const API_NAME = "context";
+const NOOP_CONTEXT_MANAGER = new require_NoopContextManager.NoopContextManager();
+const NOOP_TOKEN = Object.freeze({ dispose: () => {} });
+/**
+* Singleton object which represents the entry point to the OpenTelemetry Context API
+*
+* @since 1.0.0
+*/
+var ContextAPI = class ContextAPI {
+	/** Empty private constructor prevents end users from constructing a new instance of the API */
+	constructor() {
+		this._attachUnsupportedWarned = false;
+	}
+	/** Get the singleton instance of the Context API */
+	static getInstance() {
+		if (!this._instance) this._instance = new ContextAPI();
+		return this._instance;
+	}
+	/**
+	* Set the current context manager.
+	*
+	* @returns true if the context manager was successfully registered, else false
+	*/
+	setGlobalContextManager(contextManager) {
+		return require_global_utils.registerGlobal(API_NAME, contextManager, require_diag.DiagAPI.instance());
+	}
+	/**
+	* Get the currently active context
+	*/
+	active() {
+		return this._getContextManager().active();
+	}
+	/**
+	* Execute a function with an active context
+	*
+	* @param context context to be active during function execution
+	* @param fn function to execute in a context
+	* @param thisArg optional receiver to be used for calling fn
+	* @param args optional arguments forwarded to fn
+	*/
+	with(context, fn, thisArg, ...args) {
+		return this._getContextManager().with(context, fn, thisArg, ...args);
+	}
+	/**
+	* Bind a context to a target function or event emitter
+	*
+	* @param context context to bind to the event emitter or function. Defaults to the currently active context
+	* @param target function or event emitter to bind
+	*/
+	bind(context, target) {
+		return this._getContextManager().bind(context, target);
+	}
+	/**
+	* Imperatively sets `context` as active, returning a {@link ContextManagementToken} whose
+	* {@link ContextManagementToken.dispose} restores the previous context.
+	*
+	* This is a delicate, low-level API - prefer {@link with}/{@link bind}, which
+	* restore context automatically. Use `attach` only to bridge callback
+	* boundaries that `with` cannot wrap. Call `token.dispose()` when the
+	* operation is done.
+	*
+	* **Caveat for async functions:** If called inside an async function before
+	* the first `await`, the context change may leak into the caller's context
+	* and remain active there. Prefer {@link with} for async code.
+	*
+	* Support is best-effort and varies by the active ContextManager (see
+	* {@link ContextManager.attach}); if it does not implement `attach`, this logs
+	* a warning and returns a no-op token.
+	*
+	* @param context The Context to attach
+	* @returns A {@link ContextManagementToken} whose dispose() restores the previous Context
+	* @since 1.10.0
+	* @experimental This API is experimental and may change in minor releases without prior notice.
+	*/
+	attach(context) {
+		const contextManager = this._getContextManager();
+		if (contextManager.attach) return contextManager.attach(context);
+		if (!this._attachUnsupportedWarned) {
+			this._attachUnsupportedWarned = true;
+			require_diag.DiagAPI.instance().warn("The current ContextManager does not implement attach(). The context will not be attached. Use a ContextManager that supports attach() (e.g. AsyncLocalStorageContextManager) or use with()/bind() instead.");
+		}
+		return NOOP_TOKEN;
+	}
+	_getContextManager() {
+		return require_global_utils.getGlobal(API_NAME) || NOOP_CONTEXT_MANAGER;
+	}
+	/** Disable and remove the global context manager */
+	disable() {
+		this._getContextManager().disable();
+		require_global_utils.unregisterGlobal(API_NAME, require_diag.DiagAPI.instance());
+	}
+};
+//#endregion
+exports.ContextAPI = ContextAPI;
+
+//# sourceMappingURL=context.cjs.map
+
+/***/ }),
+
+/***/ 49982:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_ComponentLogger = __nccwpck_require__(21977);
+__nccwpck_require__(54351);
+const require_logLevelLogger = __nccwpck_require__(21714);
+//#region src/api/diag.ts
+const API_NAME = "diag";
+/**
+* Singleton object which represents the entry point to the OpenTelemetry internal
+* diagnostic API
+*
+* @since 1.0.0
+*/
+var DiagAPI = class DiagAPI {
+	/** Get the singleton instance of the DiagAPI API */
+	static instance() {
+		if (!this._instance) this._instance = new DiagAPI();
+		return this._instance;
+	}
+	/**
+	* Private internal constructor
+	* @private
+	*/
+	constructor() {
+		function _logProxy(funcName) {
+			return function(...args) {
+				const logger = require_global_utils.getGlobal("diag");
+				if (!logger) return;
+				return logger[funcName](...args);
+			};
+		}
+		const self = this;
+		const setLogger = (logger, optionsOrLogLevel = { logLevel: 60 }) => {
+			var _optionsOrLogLevel$lo;
+			if (logger === self) {
+				var _err$stack;
+				const err = /* @__PURE__ */ new Error("Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation");
+				self.error((_err$stack = err.stack) !== null && _err$stack !== void 0 ? _err$stack : err.message);
+				return false;
+			}
+			if (typeof optionsOrLogLevel === "number") optionsOrLogLevel = { logLevel: optionsOrLogLevel };
+			const oldLogger = require_global_utils.getGlobal("diag");
+			const newLogger = require_logLevelLogger.createLogLevelDiagLogger((_optionsOrLogLevel$lo = optionsOrLogLevel.logLevel) !== null && _optionsOrLogLevel$lo !== void 0 ? _optionsOrLogLevel$lo : 60, logger);
+			if (oldLogger && !optionsOrLogLevel.suppressOverrideMessage) {
+				var _Error$stack;
+				const stack = (_Error$stack = (/* @__PURE__ */ new Error()).stack) !== null && _Error$stack !== void 0 ? _Error$stack : "<failed to generate stacktrace>";
+				oldLogger.warn(`Current logger will be overwritten from ${stack}`);
+				newLogger.warn(`Current logger will overwrite one already registered from ${stack}`);
+			}
+			return require_global_utils.registerGlobal("diag", newLogger, self, true);
+		};
+		self.setLogger = setLogger;
+		self.disable = () => {
+			require_global_utils.unregisterGlobal(API_NAME, self);
+		};
+		self.createComponentLogger = (options) => {
+			return new require_ComponentLogger.DiagComponentLogger(options);
+		};
+		self.verbose = _logProxy("verbose");
+		self.debug = _logProxy("debug");
+		self.info = _logProxy("info");
+		self.warn = _logProxy("warn");
+		self.error = _logProxy("error");
+	}
+};
+//#endregion
+exports.DiagAPI = DiagAPI;
+
+//# sourceMappingURL=diag.cjs.map
+
+/***/ }),
+
+/***/ 19102:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_diag = __nccwpck_require__(49982);
+const require_ProxyLoggerProvider = __nccwpck_require__(69035);
+//#region src/api/logs.ts
+const API_NAME = "logs";
+/**
+* Singleton object which represents the entry point to the OpenTelemetry Logs API
+*
+* @since 1.10.0
+*/
+var LogsAPI = class LogsAPI {
+	/** Empty private constructor prevents end users from constructing a new instance of the API */
+	constructor() {
+		this._proxyLoggerProvider = new require_ProxyLoggerProvider.ProxyLoggerProvider();
+	}
+	/** Get the singleton instance of the Logs API */
+	static getInstance() {
+		if (!this._instance) this._instance = new LogsAPI();
+		return this._instance;
+	}
+	setGlobalLoggerProvider(provider) {
+		const success = require_global_utils.registerGlobal(API_NAME, provider, require_diag.DiagAPI.instance());
+		if (success) this._proxyLoggerProvider._setDelegate(provider);
+		return success;
+	}
+	/**
+	* Returns the global logger provider.
+	*
+	* @returns LoggerProvider
+	*/
+	getLoggerProvider() {
+		return require_global_utils.getGlobal(API_NAME) || this._proxyLoggerProvider;
+	}
+	/**
+	* Returns a Logger, creating one if one with the given name, version,
+	* schemaUrl, and attributes is not already created.
+	*
+	* Getting a Logger may be expensive, especially when `attributes` are
+	* provided. Reuse Logger instances where possible instead of calling
+	* `getLogger()` on hot paths.
+	*
+	* @param name The name of the logger or instrumentation library.
+	* @param version The version of the logger or instrumentation library.
+	* @param options The options of the logger or instrumentation library.
+	* @returns {@link Logger}
+	*/
+	getLogger(name, version, options) {
+		return this.getLoggerProvider().getLogger(name, version, options);
+	}
+	/** Remove the global logger provider */
+	disable() {
+		require_global_utils.unregisterGlobal(API_NAME, require_diag.DiagAPI.instance());
+		this._proxyLoggerProvider = new require_ProxyLoggerProvider.ProxyLoggerProvider();
+	}
+};
+//#endregion
+exports.e = LogsAPI;
+
+//# sourceMappingURL=logs.cjs.map
+
+/***/ }),
+
+/***/ 33510:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_diag = __nccwpck_require__(49982);
+const require_NoopMeterProvider = __nccwpck_require__(47554);
+//#region src/api/metrics.ts
+const API_NAME = "metrics";
+/**
+* Singleton object which represents the entry point to the OpenTelemetry Metrics API
+*
+* @since 1.4.1
+*/
+var MetricsAPI = class MetricsAPI {
+	/** Empty private constructor prevents end users from constructing a new instance of the API */
+	constructor() {}
+	/** Get the singleton instance of the Metrics API */
+	static getInstance() {
+		if (!this._instance) this._instance = new MetricsAPI();
+		return this._instance;
+	}
+	/**
+	* Set the current global meter provider.
+	* Returns true if the meter provider was successfully registered, else false.
+	*/
+	setGlobalMeterProvider(provider) {
+		return require_global_utils.registerGlobal(API_NAME, provider, require_diag.DiagAPI.instance());
+	}
+	/**
+	* Returns the global meter provider.
+	*/
+	getMeterProvider() {
+		return require_global_utils.getGlobal(API_NAME) || require_NoopMeterProvider.NOOP_METER_PROVIDER;
+	}
+	/**
+	* Returns a meter from the global meter provider.
+	*/
+	getMeter(name, version, options) {
+		return this.getMeterProvider().getMeter(name, version, options);
+	}
+	/** Remove the global meter provider */
+	disable() {
+		require_global_utils.unregisterGlobal(API_NAME, require_diag.DiagAPI.instance());
+	}
+};
+//#endregion
+exports.k = MetricsAPI;
+
+//# sourceMappingURL=metrics.cjs.map
+
+/***/ }),
+
+/***/ 93007:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_diag = __nccwpck_require__(49982);
+const require_utils = __nccwpck_require__(45196);
+const require_TextMapPropagator = __nccwpck_require__(43565);
+const require_NoopTextMapPropagator = __nccwpck_require__(80345);
+const require_context_helpers = __nccwpck_require__(97510);
+//#region src/api/propagation.ts
+const API_NAME = "propagation";
+const NOOP_TEXT_MAP_PROPAGATOR = new require_NoopTextMapPropagator.NoopTextMapPropagator();
+/**
+* Singleton object which represents the entry point to the OpenTelemetry Propagation API
+*
+* @since 1.0.0
+*/
+var PropagationAPI = class PropagationAPI {
+	/** Empty private constructor prevents end users from constructing a new instance of the API */
+	constructor() {
+		this.createBaggage = require_utils.createBaggage;
+		this.getBaggage = require_context_helpers.getBaggage;
+		this.getActiveBaggage = require_context_helpers.getActiveBaggage;
+		this.setBaggage = require_context_helpers.setBaggage;
+		this.deleteBaggage = require_context_helpers.deleteBaggage;
+	}
+	/** Get the singleton instance of the Propagator API */
+	static getInstance() {
+		if (!this._instance) this._instance = new PropagationAPI();
+		return this._instance;
+	}
+	/**
+	* Set the current propagator.
+	*
+	* @returns true if the propagator was successfully registered, else false
+	*/
+	setGlobalPropagator(propagator) {
+		return require_global_utils.registerGlobal(API_NAME, propagator, require_diag.DiagAPI.instance());
+	}
+	/**
+	* Inject context into a carrier to be propagated inter-process
+	*
+	* @param context Context carrying tracing data to inject
+	* @param carrier carrier to inject context into
+	* @param setter Function used to set values on the carrier
+	*/
+	inject(context, carrier, setter = require_TextMapPropagator.defaultTextMapSetter) {
+		return this._getGlobalPropagator().inject(context, carrier, setter);
+	}
+	/**
+	* Extract context from a carrier
+	*
+	* @param context Context which the newly created context will inherit from
+	* @param carrier Carrier to extract context from
+	* @param getter Function used to extract keys from a carrier
+	*/
+	extract(context, carrier, getter = require_TextMapPropagator.defaultTextMapGetter) {
+		return this._getGlobalPropagator().extract(context, carrier, getter);
+	}
+	/**
+	* Return a list of all fields which may be used by the propagator.
+	*/
+	fields() {
+		return this._getGlobalPropagator().fields();
+	}
+	/** Remove the global propagator */
+	disable() {
+		require_global_utils.unregisterGlobal(API_NAME, require_diag.DiagAPI.instance());
+	}
+	_getGlobalPropagator() {
+		return require_global_utils.getGlobal(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
+	}
+};
+//#endregion
+exports.R = PropagationAPI;
+
+//# sourceMappingURL=propagation.cjs.map
+
+/***/ }),
+
+/***/ 5446:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+const require_diag = __nccwpck_require__(49982);
+const require_context_utils = __nccwpck_require__(3779);
+const require_spancontext_utils = __nccwpck_require__(83723);
+const require_ProxyTracerProvider = __nccwpck_require__(55930);
+//#region src/api/trace.ts
+const API_NAME = "trace";
+/**
+* Singleton object which represents the entry point to the OpenTelemetry Tracing API
+*
+* @since 1.0.0
+*/
+var TraceAPI = class TraceAPI {
+	/** Empty private constructor prevents end users from constructing a new instance of the API */
+	constructor() {
+		this._proxyTracerProvider = new require_ProxyTracerProvider.ProxyTracerProvider();
+		this.wrapSpanContext = require_spancontext_utils.wrapSpanContext;
+		this.isSpanContextValid = require_spancontext_utils.isSpanContextValid;
+		this.deleteSpan = require_context_utils.deleteSpan;
+		this.getSpan = require_context_utils.getSpan;
+		this.getActiveSpan = require_context_utils.getActiveSpan;
+		this.getSpanContext = require_context_utils.getSpanContext;
+		this.setSpan = require_context_utils.setSpan;
+		this.setSpanContext = require_context_utils.setSpanContext;
+	}
+	/** Get the singleton instance of the Trace API */
+	static getInstance() {
+		if (!this._instance) this._instance = new TraceAPI();
+		return this._instance;
+	}
+	/**
+	* Set the current global tracer.
+	*
+	* @returns true if the tracer provider was successfully registered, else false
+	*/
+	setGlobalTracerProvider(provider) {
+		const success = require_global_utils.registerGlobal(API_NAME, this._proxyTracerProvider, require_diag.DiagAPI.instance());
+		if (success) this._proxyTracerProvider.setDelegate(provider);
+		return success;
+	}
+	/**
+	* Returns the global tracer provider.
+	*/
+	getTracerProvider() {
+		return require_global_utils.getGlobal(API_NAME) || this._proxyTracerProvider;
+	}
+	/**
+	* Returns a tracer from the global tracer provider.
+	*/
+	getTracer(name, version) {
+		return this.getTracerProvider().getTracer(name, version);
+	}
+	/** Remove the global tracer provider */
+	disable() {
+		require_global_utils.unregisterGlobal(API_NAME, require_diag.DiagAPI.instance());
+		this._proxyTracerProvider = new require_ProxyTracerProvider.ProxyTracerProvider();
+	}
+};
+//#endregion
+exports.C = TraceAPI;
+
+//# sourceMappingURL=trace.cjs.map
+
+/***/ }),
+
+/***/ 97510:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_context = __nccwpck_require__(83041);
+const require_context$1 = __nccwpck_require__(8352);
+//#region src/baggage/context-helpers.ts
+/**
+* Baggage key
+*/
+const BAGGAGE_KEY = require_context.createContextKey("OpenTelemetry Baggage Key");
+/**
+* Retrieve the current baggage from the given context
+*
+* @param {Context} Context that manage all context values
+* @returns {Baggage} Extracted baggage from the context
+*/
+function getBaggage(context) {
+	return context.getValue(BAGGAGE_KEY) || void 0;
+}
+/**
+* Retrieve the current baggage from the active/current context
+*
+* @returns {Baggage} Extracted baggage from the context
+*/
+function getActiveBaggage() {
+	return getBaggage(require_context$1.ContextAPI.getInstance().active());
+}
+/**
+* Store a baggage in the given context
+*
+* @param {Context} Context that manage all context values
+* @param {Baggage} baggage that will be set in the actual context
+*/
+function setBaggage(context, baggage) {
+	return context.setValue(BAGGAGE_KEY, baggage);
+}
+/**
+* Delete the baggage stored in the given context
+*
+* @param {Context} Context that manage all context values
+*/
+function deleteBaggage(context) {
+	return context.deleteValue(BAGGAGE_KEY);
+}
+//#endregion
+exports.deleteBaggage = deleteBaggage;
+exports.getActiveBaggage = getActiveBaggage;
+exports.getBaggage = getBaggage;
+exports.setBaggage = setBaggage;
+
+//# sourceMappingURL=context-helpers.cjs.map
+
+/***/ }),
+
+/***/ 10176:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/baggage/internal/baggage-impl.ts
+var BaggageImpl = class BaggageImpl {
+	constructor(entries) {
+		this._entries = entries ? new Map(entries) : /* @__PURE__ */ new Map();
+	}
+	getEntry(key) {
+		const entry = this._entries.get(key);
+		if (!entry) return;
+		return Object.assign({}, entry);
+	}
+	getAllEntries() {
+		return Array.from(this._entries.entries());
+	}
+	setEntry(key, entry) {
+		const newBaggage = new BaggageImpl(this._entries);
+		newBaggage._entries.set(key, entry);
+		return newBaggage;
+	}
+	removeEntry(key) {
+		const newBaggage = new BaggageImpl(this._entries);
+		newBaggage._entries.delete(key);
+		return newBaggage;
+	}
+	removeEntries(...keys) {
+		const newBaggage = new BaggageImpl(this._entries);
+		for (const key of keys) newBaggage._entries.delete(key);
+		return newBaggage;
+	}
+	clear() {
+		return new BaggageImpl();
+	}
+};
+//#endregion
+exports.BaggageImpl = BaggageImpl;
+
+//# sourceMappingURL=baggage-impl.cjs.map
+
+/***/ }),
+
+/***/ 9333:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/baggage/internal/symbol.ts
+/**
+* Symbol used to make BaggageEntryMetadata an opaque type
+*/
+const baggageEntryMetadataSymbol = Symbol("BaggageEntryMetadata");
+//#endregion
+exports.baggageEntryMetadataSymbol = baggageEntryMetadataSymbol;
+
+//# sourceMappingURL=symbol.cjs.map
+
+/***/ }),
+
+/***/ 45196:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_diag = __nccwpck_require__(49982);
+const require_baggage_impl = __nccwpck_require__(10176);
+const require_symbol = __nccwpck_require__(9333);
+//#region src/baggage/utils.ts
+const diag = require_diag.DiagAPI.instance();
+/**
+* Create a new Baggage with optional entries
+*
+* @param entries An array of baggage entries the new baggage should contain
+*/
+function createBaggage(entries = {}) {
+	return new require_baggage_impl.BaggageImpl(new Map(Object.entries(entries)));
+}
+/**
+* Create a serializable BaggageEntryMetadata object from a string.
+*
+* @param str string metadata. Format is currently not defined by the spec and has no special meaning.
+*
+* @since 1.0.0
+*/
+function baggageEntryMetadataFromString(str) {
+	if (typeof str !== "string") {
+		diag.error(`Cannot create baggage metadata from unknown type: ${typeof str}`);
+		str = "";
+	}
+	return {
+		__TYPE__: require_symbol.baggageEntryMetadataSymbol,
+		toString() {
+			return str;
+		}
+	};
+}
+//#endregion
+exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
+exports.createBaggage = createBaggage;
+
+//# sourceMappingURL=utils.cjs.map
+
+/***/ }),
+
+/***/ 42534:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/context-api.ts
+/**
+* Entrypoint for context API
+* @since 1.0.0
+*/
+const context = (__nccwpck_require__(8352).ContextAPI).getInstance();
+//#endregion
+exports.context = context;
+
+//# sourceMappingURL=context-api.cjs.map
+
+/***/ }),
+
+/***/ 10006:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_context = __nccwpck_require__(83041);
+//#region src/context/NoopContextManager.ts
+var NoopContextManager = class {
+	active() {
+		return require_context.ROOT_CONTEXT;
+	}
+	with(_context, fn, thisArg, ...args) {
+		return fn.call(thisArg, ...args);
+	}
+	bind(_context, target) {
+		return target;
+	}
+	enable() {
+		return this;
+	}
+	disable() {
+		return this;
+	}
+	/** @experimental This API is experimental and may change in minor releases without prior notice. */
+	attach(_context) {
+		return { dispose() {} };
+	}
+};
+//#endregion
+exports.NoopContextManager = NoopContextManager;
+
+//# sourceMappingURL=NoopContextManager.cjs.map
+
+/***/ }),
+
+/***/ 83041:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/context/context.ts
+/**
+* Get a key to uniquely identify a context value
+*
+* @since 1.0.0
+*/
+function createContextKey(description) {
+	return Symbol.for(description);
+}
+/**
+* The root context is used as the default parent context when there is no active context
+*
+* @since 1.0.0
+*/
+const ROOT_CONTEXT = new class BaseContext {
+	/**
+	* Construct a new context which inherits values from an optional parent context.
+	*
+	* @param parentContext a context from which to inherit values
+	*/
+	constructor(parentContext) {
+		const self = this;
+		self._currentContext = parentContext ? new Map(parentContext) : /* @__PURE__ */ new Map();
+		self.getValue = (key) => self._currentContext.get(key);
+		self.setValue = (key, value) => {
+			const context = new BaseContext(self._currentContext);
+			context._currentContext.set(key, value);
+			return context;
+		};
+		self.deleteValue = (key) => {
+			const context = new BaseContext(self._currentContext);
+			context._currentContext.delete(key);
+			return context;
+		};
+	}
+}();
+//#endregion
+exports.ROOT_CONTEXT = ROOT_CONTEXT;
+exports.createContextKey = createContextKey;
+
+//# sourceMappingURL=context.cjs.map
+
+/***/ }),
+
+/***/ 31778:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/diag-api.ts
+/**
+* Entrypoint for Diag API.
+* Defines Diagnostic handler used for internal diagnostic logging operations.
+* The default provides a Noop DiagLogger implementation which may be changed via the
+* diag.setLogger(logger: DiagLogger) function.
+*
+* @since 1.0.0
+*/
+const diag = (__nccwpck_require__(49982).DiagAPI).instance();
+//#endregion
+exports.diag = diag;
+
+//# sourceMappingURL=diag-api.cjs.map
+
+/***/ }),
+
+/***/ 21977:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_global_utils = __nccwpck_require__(89227);
+//#region src/diag/ComponentLogger.ts
+/**
+* Component Logger which is meant to be used as part of any component which
+* will add automatically additional namespace in front of the log message.
+* It will then forward all message to global diag logger
+* @example
+* const cLogger = diag.createComponentLogger({ namespace: '@opentelemetry/instrumentation-http' });
+* cLogger.debug('test');
+* // @opentelemetry/instrumentation-http test
+*/
+var DiagComponentLogger = class {
+	constructor(props) {
+		this._namespace = props.namespace || "DiagComponentLogger";
+	}
+	debug(...args) {
+		return logProxy("debug", this._namespace, args);
+	}
+	error(...args) {
+		return logProxy("error", this._namespace, args);
+	}
+	info(...args) {
+		return logProxy("info", this._namespace, args);
+	}
+	warn(...args) {
+		return logProxy("warn", this._namespace, args);
+	}
+	verbose(...args) {
+		return logProxy("verbose", this._namespace, args);
+	}
+};
+function logProxy(funcName, namespace, args) {
+	const logger = require_global_utils.getGlobal("diag");
+	if (!logger) return;
+	return logger[funcName](namespace, ...args);
+}
+//#endregion
+exports.DiagComponentLogger = DiagComponentLogger;
+
+//# sourceMappingURL=ComponentLogger.cjs.map
+
+/***/ }),
+
+/***/ 19199:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/diag/consoleLogger.ts
+const consoleMap = [
+	{
+		n: "error",
+		c: "error"
+	},
+	{
+		n: "warn",
+		c: "warn"
+	},
+	{
+		n: "info",
+		c: "info"
+	},
+	{
+		n: "debug",
+		c: "debug"
+	},
+	{
+		n: "verbose",
+		c: "trace"
+	}
+];
+const _originalConsoleMethods = {};
+if (typeof console !== "undefined") {
+	for (const key of [
+		"error",
+		"warn",
+		"info",
+		"debug",
+		"trace",
+		"log"
+	]) if (typeof console[key] === "function") _originalConsoleMethods[key] = console[key];
+}
+/**
+* A simple Immutable Console based diagnostic logger which will output any messages to the Console.
+* If you want to limit the amount of logging to a specific level or lower use the
+* {@link createLogLevelDiagLogger}
+*
+* @since 1.0.0
+*/
+var DiagConsoleLogger = class {
+	constructor() {
+		function _consoleFunc(funcName) {
+			return function(...args) {
+				let theFunc = _originalConsoleMethods[funcName];
+				if (typeof theFunc !== "function") theFunc = _originalConsoleMethods["log"];
+				if (typeof theFunc !== "function" && console) {
+					theFunc = console[funcName];
+					if (typeof theFunc !== "function") theFunc = console.log;
+				}
+				if (typeof theFunc === "function") return theFunc.apply(console, args);
+			};
+		}
+		for (let i = 0; i < consoleMap.length; i++) this[consoleMap[i].n] = _consoleFunc(consoleMap[i].c);
+	}
+};
+//#endregion
+exports.DiagConsoleLogger = DiagConsoleLogger;
+exports._originalConsoleMethods = _originalConsoleMethods;
+
+//# sourceMappingURL=consoleLogger.cjs.map
+
+/***/ }),
+
+/***/ 21714:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+__nccwpck_require__(54351);
+//#region src/diag/internal/logLevelLogger.ts
+function createLogLevelDiagLogger(maxLevel, logger) {
+	if (maxLevel < 0) maxLevel = 0;
+	else if (maxLevel > 9999) maxLevel = 9999;
+	logger = logger || {};
+	function _filterFunc(funcName, theLevel) {
+		const theFunc = logger[funcName];
+		if (typeof theFunc === "function" && maxLevel >= theLevel) return theFunc.bind(logger);
+		return function() {};
+	}
+	return {
+		error: _filterFunc("error", 30),
+		warn: _filterFunc("warn", 50),
+		info: _filterFunc("info", 60),
+		debug: _filterFunc("debug", 70),
+		verbose: _filterFunc("verbose", 80)
+	};
+}
+//#endregion
+exports.createLogLevelDiagLogger = createLogLevelDiagLogger;
+
+//# sourceMappingURL=logLevelLogger.cjs.map
+
+/***/ }),
+
+/***/ 54351:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/diag/types.ts
+/**
+* Defines the available internal logging levels for the diagnostic logger, the numeric values
+* of the levels are defined to match the original values from the initial LogLevel to avoid
+* compatibility/migration issues for any implementation that assume the numeric ordering.
+*
+* @since 1.0.0
+*/
+let DiagLogLevel = /* @__PURE__ */ function(DiagLogLevel) {
+	/** Diagnostic Logging level setting to disable all logging (except and forced logs) */
+	DiagLogLevel[DiagLogLevel["NONE"] = 0] = "NONE";
+	/** Identifies an error scenario */
+	DiagLogLevel[DiagLogLevel["ERROR"] = 30] = "ERROR";
+	/** Identifies a warning scenario */
+	DiagLogLevel[DiagLogLevel["WARN"] = 50] = "WARN";
+	/** General informational log message */
+	DiagLogLevel[DiagLogLevel["INFO"] = 60] = "INFO";
+	/** General debug log message */
+	DiagLogLevel[DiagLogLevel["DEBUG"] = 70] = "DEBUG";
+	/**
+	* Detailed trace level logging should only be used for development, should only be set
+	* in a development environment.
+	*/
+	DiagLogLevel[DiagLogLevel["VERBOSE"] = 80] = "VERBOSE";
+	/** Used to set the logging level to include all logging */
+	DiagLogLevel[DiagLogLevel["ALL"] = 9999] = "ALL";
+	return DiagLogLevel;
+}({});
+//#endregion
+exports.DiagLogLevel = DiagLogLevel;
+
+//# sourceMappingURL=types.cjs.map
+
+/***/ }),
+
+/***/ 91408:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+Object.defineProperties(exports, {
+	__esModule: { value: true },
+	[Symbol.toStringTag]: { value: "Module" }
+});
+const require_types = __nccwpck_require__(54351);
+const require_utils = __nccwpck_require__(45196);
+const require_context = __nccwpck_require__(83041);
+const require_consoleLogger = __nccwpck_require__(19199);
+const require_NoopMeter = __nccwpck_require__(1677);
+const require_Metric = __nccwpck_require__(80626);
+const require_NoopLogger = __nccwpck_require__(69140);
+const require_LogRecord = __nccwpck_require__(8973);
+const require_TextMapPropagator = __nccwpck_require__(43565);
+const require_trace_flags = __nccwpck_require__(43245);
+const require_invalid_span_constants = __nccwpck_require__(63552);
+const require_spancontext_utils = __nccwpck_require__(83723);
+const require_ProxyTracer = __nccwpck_require__(33861);
+const require_span_kind = __nccwpck_require__(97483);
+const require_status = __nccwpck_require__(17632);
+const require_utils$1 = __nccwpck_require__(2219);
+const require_ProxyTracerProvider = __nccwpck_require__(55930);
+const require_SamplingResult = __nccwpck_require__(55346);
+const require_context_api = __nccwpck_require__(42534);
+const require_diag_api = __nccwpck_require__(31778);
+const require_logs_api = __nccwpck_require__(15662);
+const require_metrics_api = __nccwpck_require__(57876);
+const require_propagation_api = __nccwpck_require__(97045);
+const require_trace_api = __nccwpck_require__(78936);
+//#region src/index.ts
+var src_default = {
+	context: require_context_api.context,
+	diag: require_diag_api.diag,
+	logs: require_logs_api.logs,
+	metrics: require_metrics_api.metrics,
+	propagation: require_propagation_api.propagation,
+	trace: require_trace_api.trace
+};
+//#endregion
+exports.DiagConsoleLogger = require_consoleLogger.DiagConsoleLogger;
+exports.DiagLogLevel = require_types.DiagLogLevel;
+exports.INVALID_SPANID = require_invalid_span_constants.INVALID_SPANID;
+exports.INVALID_SPAN_CONTEXT = require_invalid_span_constants.INVALID_SPAN_CONTEXT;
+exports.INVALID_TRACEID = require_invalid_span_constants.INVALID_TRACEID;
+exports.ProxyTracer = require_ProxyTracer.ProxyTracer;
+exports.ProxyTracerProvider = require_ProxyTracerProvider.ProxyTracerProvider;
+exports.ROOT_CONTEXT = require_context.ROOT_CONTEXT;
+exports.SamplingDecision = require_SamplingResult.SamplingDecision;
+exports.SeverityNumber = require_LogRecord.SeverityNumber;
+exports.SpanKind = require_span_kind.SpanKind;
+exports.SpanStatusCode = require_status.SpanStatusCode;
+exports.TraceFlags = require_trace_flags.TraceFlags;
+exports.ValueType = require_Metric.ValueType;
+exports.baggageEntryMetadataFromString = require_utils.baggageEntryMetadataFromString;
+exports.context = require_context_api.context;
+exports.createContextKey = require_context.createContextKey;
+exports.createNoopLogger = require_NoopLogger.createNoopLogger;
+exports.createNoopMeter = require_NoopMeter.createNoopMeter;
+exports.createTraceState = require_utils$1.createTraceState;
+exports["default"] = src_default;
+exports.defaultTextMapGetter = require_TextMapPropagator.defaultTextMapGetter;
+exports.defaultTextMapSetter = require_TextMapPropagator.defaultTextMapSetter;
+exports.diag = require_diag_api.diag;
+exports.isSpanContextValid = require_spancontext_utils.isSpanContextValid;
+exports.isValidSpanId = require_spancontext_utils.isValidSpanId;
+exports.isValidTraceId = require_spancontext_utils.isValidTraceId;
+exports.logs = require_logs_api.logs;
+exports.metrics = require_metrics_api.metrics;
+exports.propagation = require_propagation_api.propagation;
+exports.trace = require_trace_api.trace;
+
+//# sourceMappingURL=index.cjs.map
+
+/***/ }),
+
+/***/ 89227:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_version = __nccwpck_require__(39128);
+const require_semver = __nccwpck_require__(41418);
+//#region src/internal/global-utils.ts
+const major = require_version.VERSION.split(".")[0];
+const GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
+const _global = typeof globalThis === "object" ? globalThis : typeof self === "object" ? self : typeof window === "object" ? window : typeof global === "object" ? global : {};
+function _makeGlobalApi() {
+	return Object.defineProperty({}, "version", {
+		value: require_version.VERSION,
+		enumerable: true,
+		writable: false,
+		configurable: false
+	});
+}
+function registerGlobal(type, instance, diag, allowOverride = false) {
+	var _global$GLOBAL_OPENTE;
+	const api = _global[GLOBAL_OPENTELEMETRY_API_KEY] = (_global$GLOBAL_OPENTE = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _global$GLOBAL_OPENTE !== void 0 ? _global$GLOBAL_OPENTE : _makeGlobalApi();
+	if (!allowOverride && api[type]) {
+		const err = /* @__PURE__ */ new Error(`@opentelemetry/api: Attempted duplicate registration of API: ${type}`);
+		diag.error(err.stack || err.message);
+		return false;
+	}
+	if (api.version !== "1.10.0") {
+		const err = /* @__PURE__ */ new Error(`@opentelemetry/api: Registration of version v${api.version} for ${type} does not match previously registered API v${require_version.VERSION}`);
+		diag.error(err.stack || err.message);
+		return false;
+	}
+	api[type] = instance;
+	diag.debug(`@opentelemetry/api: Registered a global for ${type} v${require_version.VERSION}.`);
+	return true;
+}
+let _compatibleGlobalApi;
+function getGlobal(type) {
+	const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
+	if (api == null) return;
+	if (api !== _compatibleGlobalApi) {
+		if (!api.version || !require_semver.isCompatible(api.version)) return;
+		_compatibleGlobalApi = api;
+	}
+	return api[type];
+}
+function unregisterGlobal(type, diag) {
+	diag.debug(`@opentelemetry/api: Unregistering a global for ${type} v${require_version.VERSION}.`);
+	const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
+	if (api) delete api[type];
+}
+//#endregion
+exports.getGlobal = getGlobal;
+exports.registerGlobal = registerGlobal;
+exports.unregisterGlobal = unregisterGlobal;
+
+//# sourceMappingURL=global-utils.cjs.map
+
+/***/ }),
+
+/***/ 41418:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_version = __nccwpck_require__(39128);
+//#region src/internal/semver.ts
+const re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
+/**
+* Create a function to test an API version to see if it is compatible with the provided ownVersion.
+*
+* The returned function has the following semantics:
+* - Exact match is always compatible
+* - Major versions must match exactly
+*    - 1.x package cannot use global 2.x package
+*    - 2.x package cannot use global 1.x package
+* - The minor version of the API module requesting access to the global API must be less than or equal to the minor version of this API
+*    - 1.3 package may use 1.4 global because the later global contains all functions 1.3 expects
+*    - 1.4 package may NOT use 1.3 global because it may try to call functions which don't exist on 1.3
+* - If the major version is 0, the minor version is treated as the major and the patch is treated as the minor
+* - Patch and build tag differences are not considered at this time
+*
+* @param ownVersion version which should be checked against
+*/
+function _makeCompatibilityCheck(ownVersion) {
+	const acceptedVersions = /* @__PURE__ */ new Set([ownVersion]);
+	const rejectedVersions = /* @__PURE__ */ new Set();
+	const myVersionMatch = ownVersion.match(re);
+	if (!myVersionMatch) return () => false;
+	const ownVersionParsed = {
+		major: +myVersionMatch[1],
+		minor: +myVersionMatch[2],
+		patch: +myVersionMatch[3],
+		prerelease: myVersionMatch[4]
+	};
+	if (ownVersionParsed.prerelease != null) return function isExactmatch(globalVersion) {
+		return globalVersion === ownVersion;
+	};
+	function _reject(v) {
+		rejectedVersions.add(v);
+		return false;
+	}
+	function _accept(v) {
+		acceptedVersions.add(v);
+		return true;
+	}
+	return function isCompatible(globalVersion) {
+		if (acceptedVersions.has(globalVersion)) return true;
+		if (rejectedVersions.has(globalVersion)) return false;
+		const globalVersionMatch = globalVersion.match(re);
+		if (!globalVersionMatch) return _reject(globalVersion);
+		const globalVersionParsed = {
+			major: +globalVersionMatch[1],
+			minor: +globalVersionMatch[2],
+			patch: +globalVersionMatch[3],
+			prerelease: globalVersionMatch[4]
+		};
+		if (globalVersionParsed.prerelease != null) return _reject(globalVersion);
+		if (ownVersionParsed.major !== globalVersionParsed.major) return _reject(globalVersion);
+		if (ownVersionParsed.major === 0) {
+			if (ownVersionParsed.minor === globalVersionParsed.minor && ownVersionParsed.patch <= globalVersionParsed.patch) return _accept(globalVersion);
+			return _reject(globalVersion);
+		}
+		if (ownVersionParsed.minor <= globalVersionParsed.minor) return _accept(globalVersion);
+		return _reject(globalVersion);
+	};
+}
+/**
+* Test an API version to see if it is compatible with this API.
+*
+* - Exact match is always compatible
+* - Major versions must match exactly
+*    - 1.x package cannot use global 2.x package
+*    - 2.x package cannot use global 1.x package
+* - The minor version of the API module requesting access to the global API must be less than or equal to the minor version of this API
+*    - 1.3 package may use 1.4 global because the later global contains all functions 1.3 expects
+*    - 1.4 package may NOT use 1.3 global because it may try to call functions which don't exist on 1.3
+* - If the major version is 0, the minor version is treated as the major and the patch is treated as the minor
+* - Patch and build tag differences are not considered at this time
+*
+* @param version version of the API requesting an instance of the global API
+*/
+const isCompatible = _makeCompatibilityCheck(require_version.VERSION);
+//#endregion
+exports._makeCompatibilityCheck = _makeCompatibilityCheck;
+exports.isCompatible = isCompatible;
+
+//# sourceMappingURL=semver.cjs.map
+
+/***/ }),
+
+/***/ 15662:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/logs-api.ts
+/**
+* Entrypoint for logs API
+*
+* @since 1.10.0
+*/
+const logs = (__nccwpck_require__(19102)/* .LogsAPI */ .e).getInstance();
+//#endregion
+exports.logs = logs;
+
+//# sourceMappingURL=logs-api.cjs.map
+
+/***/ }),
+
+/***/ 8973:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/logs/LogRecord.ts
+let SeverityNumber = /* @__PURE__ */ function(SeverityNumber) {
+	SeverityNumber[SeverityNumber["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+	SeverityNumber[SeverityNumber["TRACE"] = 1] = "TRACE";
+	SeverityNumber[SeverityNumber["TRACE2"] = 2] = "TRACE2";
+	SeverityNumber[SeverityNumber["TRACE3"] = 3] = "TRACE3";
+	SeverityNumber[SeverityNumber["TRACE4"] = 4] = "TRACE4";
+	SeverityNumber[SeverityNumber["DEBUG"] = 5] = "DEBUG";
+	SeverityNumber[SeverityNumber["DEBUG2"] = 6] = "DEBUG2";
+	SeverityNumber[SeverityNumber["DEBUG3"] = 7] = "DEBUG3";
+	SeverityNumber[SeverityNumber["DEBUG4"] = 8] = "DEBUG4";
+	SeverityNumber[SeverityNumber["INFO"] = 9] = "INFO";
+	SeverityNumber[SeverityNumber["INFO2"] = 10] = "INFO2";
+	SeverityNumber[SeverityNumber["INFO3"] = 11] = "INFO3";
+	SeverityNumber[SeverityNumber["INFO4"] = 12] = "INFO4";
+	SeverityNumber[SeverityNumber["WARN"] = 13] = "WARN";
+	SeverityNumber[SeverityNumber["WARN2"] = 14] = "WARN2";
+	SeverityNumber[SeverityNumber["WARN3"] = 15] = "WARN3";
+	SeverityNumber[SeverityNumber["WARN4"] = 16] = "WARN4";
+	SeverityNumber[SeverityNumber["ERROR"] = 17] = "ERROR";
+	SeverityNumber[SeverityNumber["ERROR2"] = 18] = "ERROR2";
+	SeverityNumber[SeverityNumber["ERROR3"] = 19] = "ERROR3";
+	SeverityNumber[SeverityNumber["ERROR4"] = 20] = "ERROR4";
+	SeverityNumber[SeverityNumber["FATAL"] = 21] = "FATAL";
+	SeverityNumber[SeverityNumber["FATAL2"] = 22] = "FATAL2";
+	SeverityNumber[SeverityNumber["FATAL3"] = 23] = "FATAL3";
+	SeverityNumber[SeverityNumber["FATAL4"] = 24] = "FATAL4";
+	return SeverityNumber;
+}({});
+//#endregion
+exports.SeverityNumber = SeverityNumber;
+
+//# sourceMappingURL=LogRecord.cjs.map
+
+/***/ }),
+
+/***/ 69140:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/logs/NoopLogger.ts
+var NoopLogger = class {
+	emit(_logRecord) {}
+	enabled() {
+		return false;
+	}
+};
+const NOOP_LOGGER = new NoopLogger();
+/**
+* Create a no-op Logger
+*/
+function createNoopLogger() {
+	return NOOP_LOGGER;
+}
+//#endregion
+exports.NOOP_LOGGER = NOOP_LOGGER;
+exports.NoopLogger = NoopLogger;
+exports.createNoopLogger = createNoopLogger;
+
+//# sourceMappingURL=NoopLogger.cjs.map
+
+/***/ }),
+
+/***/ 71995:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_NoopLogger = __nccwpck_require__(69140);
+//#region src/logs/NoopLoggerProvider.ts
+var NoopLoggerProvider = class {
+	getLogger(_name, _version, _options) {
+		return new require_NoopLogger.NoopLogger();
+	}
+};
+const NOOP_LOGGER_PROVIDER = new NoopLoggerProvider();
+//#endregion
+exports.NOOP_LOGGER_PROVIDER = NOOP_LOGGER_PROVIDER;
+exports.NoopLoggerProvider = NoopLoggerProvider;
+
+//# sourceMappingURL=NoopLoggerProvider.cjs.map
+
+/***/ }),
+
+/***/ 38916:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_NoopLogger = __nccwpck_require__(69140);
+//#region src/logs/ProxyLogger.ts
+var ProxyLogger = class {
+	constructor(provider, name, version, options) {
+		this._provider = provider;
+		this.name = name;
+		this.version = version;
+		this.options = options;
+	}
+	/**
+	* Emit a log record. This method should only be used by log appenders.
+	*
+	* @param logRecord
+	*/
+	emit(logRecord) {
+		this._getLogger().emit(logRecord);
+	}
+	enabled(options) {
+		return this._getLogger().enabled(options);
+	}
+	/**
+	* Try to get a logger from the proxy logger provider.
+	* If the proxy logger provider has no delegate, return a noop logger.
+	*/
+	_getLogger() {
+		if (this._delegate) return this._delegate;
+		const logger = this._provider._getDelegateLogger(this.name, this.version, this.options);
+		if (!logger) return require_NoopLogger.NOOP_LOGGER;
+		this._delegate = logger;
+		return this._delegate;
+	}
+};
+//#endregion
+exports.ProxyLogger = ProxyLogger;
+
+//# sourceMappingURL=ProxyLogger.cjs.map
+
+/***/ }),
+
+/***/ 69035:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_NoopLoggerProvider = __nccwpck_require__(71995);
+const require_ProxyLogger = __nccwpck_require__(38916);
+//#region src/logs/ProxyLoggerProvider.ts
+var ProxyLoggerProvider = class {
+	getLogger(name, version, options) {
+		var _this$_getDelegateLog;
+		return (_this$_getDelegateLog = this._getDelegateLogger(name, version, options)) !== null && _this$_getDelegateLog !== void 0 ? _this$_getDelegateLog : new require_ProxyLogger.ProxyLogger(this, name, version, options);
+	}
+	/**
+	* Get the delegate logger provider.
+	* Used by tests only.
+	* @internal
+	*/
+	_getDelegate() {
+		var _this$_delegate;
+		return (_this$_delegate = this._delegate) !== null && _this$_delegate !== void 0 ? _this$_delegate : require_NoopLoggerProvider.NOOP_LOGGER_PROVIDER;
+	}
+	/**
+	* Set the delegate logger provider
+	* @internal
+	*/
+	_setDelegate(delegate) {
+		this._delegate = delegate;
+	}
+	/**
+	* @internal
+	*/
+	_getDelegateLogger(name, version, options) {
+		var _this$_delegate2;
+		return (_this$_delegate2 = this._delegate) === null || _this$_delegate2 === void 0 ? void 0 : _this$_delegate2.getLogger(name, version, options);
+	}
+};
+//#endregion
+exports.ProxyLoggerProvider = ProxyLoggerProvider;
+
+//# sourceMappingURL=ProxyLoggerProvider.cjs.map
+
+/***/ }),
+
+/***/ 57876:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/metrics-api.ts
+/**
+* Entrypoint for metrics API
+*
+* @since 1.3.0
+*/
+const metrics = (__nccwpck_require__(33510)/* .MetricsAPI */ .k).getInstance();
+//#endregion
+exports.metrics = metrics;
+
+//# sourceMappingURL=metrics-api.cjs.map
+
+/***/ }),
+
+/***/ 80626:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/metrics/Metric.ts
+/**
+* The Type of value. It describes how the data is reported.
+*
+* @since 1.3.0
+*/
+let ValueType = /* @__PURE__ */ function(ValueType) {
+	ValueType[ValueType["INT"] = 0] = "INT";
+	ValueType[ValueType["DOUBLE"] = 1] = "DOUBLE";
+	return ValueType;
+}({});
+//#endregion
+exports.ValueType = ValueType;
+
+//# sourceMappingURL=Metric.cjs.map
+
+/***/ }),
+
+/***/ 1677:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/metrics/NoopMeter.ts
+/**
+* NoopMeter is a noop implementation of the {@link Meter} interface. It reuses
+* constant NoopMetrics for all of its methods.
+*/
+var NoopMeter = class {
+	constructor() {}
+	/**
+	* @see {@link Meter.createGauge}
+	*/
+	createGauge(_name, _options) {
+		return NOOP_GAUGE_METRIC;
+	}
+	/**
+	* @see {@link Meter.createHistogram}
+	*/
+	createHistogram(_name, _options) {
+		return NOOP_HISTOGRAM_METRIC;
+	}
+	/**
+	* @see {@link Meter.createCounter}
+	*/
+	createCounter(_name, _options) {
+		return NOOP_COUNTER_METRIC;
+	}
+	/**
+	* @see {@link Meter.createUpDownCounter}
+	*/
+	createUpDownCounter(_name, _options) {
+		return NOOP_UP_DOWN_COUNTER_METRIC;
+	}
+	/**
+	* @see {@link Meter.createObservableGauge}
+	*/
+	createObservableGauge(_name, _options) {
+		return NOOP_OBSERVABLE_GAUGE_METRIC;
+	}
+	/**
+	* @see {@link Meter.createObservableCounter}
+	*/
+	createObservableCounter(_name, _options) {
+		return NOOP_OBSERVABLE_COUNTER_METRIC;
+	}
+	/**
+	* @see {@link Meter.createObservableUpDownCounter}
+	*/
+	createObservableUpDownCounter(_name, _options) {
+		return NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
+	}
+	/**
+	* @see {@link Meter.addBatchObservableCallback}
+	*/
+	addBatchObservableCallback(_callback, _observables) {}
+	/**
+	* @see {@link Meter.removeBatchObservableCallback}
+	*/
+	removeBatchObservableCallback(_callback) {}
+};
+var NoopMetric = class {};
+var NoopCounterMetric = class extends NoopMetric {
+	add(_value, _attributes) {}
+};
+var NoopUpDownCounterMetric = class extends NoopMetric {
+	add(_value, _attributes) {}
+};
+var NoopGaugeMetric = class extends NoopMetric {
+	record(_value, _attributes) {}
+};
+var NoopHistogramMetric = class extends NoopMetric {
+	record(_value, _attributes) {}
+};
+var NoopObservableMetric = class {
+	addCallback(_callback) {}
+	removeCallback(_callback) {}
+};
+var NoopObservableCounterMetric = class extends NoopObservableMetric {};
+var NoopObservableGaugeMetric = class extends NoopObservableMetric {};
+var NoopObservableUpDownCounterMetric = class extends NoopObservableMetric {};
+const NOOP_METER = new NoopMeter();
+const NOOP_COUNTER_METRIC = new NoopCounterMetric();
+const NOOP_GAUGE_METRIC = new NoopGaugeMetric();
+const NOOP_HISTOGRAM_METRIC = new NoopHistogramMetric();
+const NOOP_UP_DOWN_COUNTER_METRIC = new NoopUpDownCounterMetric();
+const NOOP_OBSERVABLE_COUNTER_METRIC = new NoopObservableCounterMetric();
+const NOOP_OBSERVABLE_GAUGE_METRIC = new NoopObservableGaugeMetric();
+const NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = new NoopObservableUpDownCounterMetric();
+/**
+* Create a no-op Meter
+*
+* @since 1.3.0
+*/
+function createNoopMeter() {
+	return NOOP_METER;
+}
+//#endregion
+exports.NOOP_COUNTER_METRIC = NOOP_COUNTER_METRIC;
+exports.NOOP_GAUGE_METRIC = NOOP_GAUGE_METRIC;
+exports.NOOP_HISTOGRAM_METRIC = NOOP_HISTOGRAM_METRIC;
+exports.NOOP_METER = NOOP_METER;
+exports.NOOP_OBSERVABLE_COUNTER_METRIC = NOOP_OBSERVABLE_COUNTER_METRIC;
+exports.NOOP_OBSERVABLE_GAUGE_METRIC = NOOP_OBSERVABLE_GAUGE_METRIC;
+exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
+exports.NOOP_UP_DOWN_COUNTER_METRIC = NOOP_UP_DOWN_COUNTER_METRIC;
+exports.NoopCounterMetric = NoopCounterMetric;
+exports.NoopGaugeMetric = NoopGaugeMetric;
+exports.NoopHistogramMetric = NoopHistogramMetric;
+exports.NoopMeter = NoopMeter;
+exports.NoopMetric = NoopMetric;
+exports.NoopObservableCounterMetric = NoopObservableCounterMetric;
+exports.NoopObservableGaugeMetric = NoopObservableGaugeMetric;
+exports.NoopObservableMetric = NoopObservableMetric;
+exports.NoopObservableUpDownCounterMetric = NoopObservableUpDownCounterMetric;
+exports.NoopUpDownCounterMetric = NoopUpDownCounterMetric;
+exports.createNoopMeter = createNoopMeter;
+
+//# sourceMappingURL=NoopMeter.cjs.map
+
+/***/ }),
+
+/***/ 47554:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_NoopMeter = __nccwpck_require__(1677);
+//#region src/metrics/NoopMeterProvider.ts
+/**
+* An implementation of the {@link MeterProvider} which returns an impotent Meter
+* for all calls to `getMeter`
+*/
+var NoopMeterProvider = class {
+	getMeter(_name, _version, _options) {
+		return require_NoopMeter.NOOP_METER;
+	}
+};
+const NOOP_METER_PROVIDER = new NoopMeterProvider();
+//#endregion
+exports.NOOP_METER_PROVIDER = NOOP_METER_PROVIDER;
+exports.NoopMeterProvider = NoopMeterProvider;
+
+//# sourceMappingURL=NoopMeterProvider.cjs.map
+
+/***/ }),
+
+/***/ 97045:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/propagation-api.ts
+/**
+* Entrypoint for propagation API
+*
+* @since 1.0.0
+*/
+const propagation = (__nccwpck_require__(93007)/* .PropagationAPI */ .R).getInstance();
+//#endregion
+exports.propagation = propagation;
+
+//# sourceMappingURL=propagation-api.cjs.map
+
+/***/ }),
+
+/***/ 80345:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/propagation/NoopTextMapPropagator.ts
+/**
+* No-op implementations of {@link TextMapPropagator}.
+*/
+var NoopTextMapPropagator = class {
+	/** Noop inject function does nothing */
+	inject(_context, _carrier) {}
+	/** Noop extract function does nothing and returns the input context */
+	extract(context, _carrier) {
+		return context;
+	}
+	fields() {
+		return [];
+	}
+};
+//#endregion
+exports.NoopTextMapPropagator = NoopTextMapPropagator;
+
+//# sourceMappingURL=NoopTextMapPropagator.cjs.map
+
+/***/ }),
+
+/***/ 43565:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/propagation/TextMapPropagator.ts
+/**
+* @since 1.0.0
+*/
+const defaultTextMapGetter = {
+	get(carrier, key) {
+		if (carrier == null) return;
+		return carrier[key];
+	},
+	keys(carrier) {
+		if (carrier == null) return [];
+		return Object.keys(carrier);
+	}
+};
+/**
+* @since 1.0.0
+*/
+const defaultTextMapSetter = { set(carrier, key, value) {
+	if (carrier == null) return;
+	carrier[key] = value;
+} };
+//#endregion
+exports.defaultTextMapGetter = defaultTextMapGetter;
+exports.defaultTextMapSetter = defaultTextMapSetter;
+
+//# sourceMappingURL=TextMapPropagator.cjs.map
+
+/***/ }),
+
+/***/ 78936:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/trace-api.ts
+/**
+* Entrypoint for trace API
+*
+* @since 1.0.0
+*/
+const trace = (__nccwpck_require__(5446)/* .TraceAPI */ .C).getInstance();
+//#endregion
+exports.trace = trace;
+
+//# sourceMappingURL=trace-api.cjs.map
+
+/***/ }),
+
+/***/ 55744:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_invalid_span_constants = __nccwpck_require__(63552);
+//#region src/trace/NonRecordingSpan.ts
+/**
+* The NonRecordingSpan is the default {@link Span} that is used when no Span
+* implementation is available. All operations are no-op including context
+* propagation.
+*/
+var NonRecordingSpan = class {
+	constructor(spanContext = require_invalid_span_constants.INVALID_SPAN_CONTEXT) {
+		this._spanContext = spanContext;
+	}
+	spanContext() {
+		return this._spanContext;
+	}
+	setAttribute(_key, _value) {
+		return this;
+	}
+	setAttributes(_attributes) {
+		return this;
+	}
+	addEvent(_name, _attributes) {
+		return this;
+	}
+	addLink(_link) {
+		return this;
+	}
+	addLinks(_links) {
+		return this;
+	}
+	setStatus(_status) {
+		return this;
+	}
+	updateName(_name) {
+		return this;
+	}
+	end(_endTime) {}
+	isRecording() {
+		return false;
+	}
+	recordException(_exception, _time) {}
+};
+//#endregion
+exports.NonRecordingSpan = NonRecordingSpan;
+
+//# sourceMappingURL=NonRecordingSpan.cjs.map
+
+/***/ }),
+
+/***/ 1725:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_context = __nccwpck_require__(8352);
+const require_NonRecordingSpan = __nccwpck_require__(55744);
+const require_context_utils = __nccwpck_require__(3779);
+const require_spancontext_utils = __nccwpck_require__(83723);
+//#region src/trace/NoopTracer.ts
+const contextApi = require_context.ContextAPI.getInstance();
+/**
+* No-op implementations of {@link Tracer}.
+*/
+var NoopTracer = class {
+	startSpan(name, options, context = contextApi.active()) {
+		if (Boolean(options === null || options === void 0 ? void 0 : options.root)) return new require_NonRecordingSpan.NonRecordingSpan();
+		const parentFromContext = context && require_context_utils.getSpanContext(context);
+		if (isSpanContext(parentFromContext) && require_spancontext_utils.isSpanContextValid(parentFromContext)) return new require_NonRecordingSpan.NonRecordingSpan(parentFromContext);
+		else return new require_NonRecordingSpan.NonRecordingSpan();
+	}
+	startActiveSpan(name, arg2, arg3, arg4) {
+		var _ctx;
+		let opts;
+		let ctx;
+		let fn;
+		if (arguments.length < 2) return;
+		else if (arguments.length === 2) fn = arg2;
+		else if (arguments.length === 3) {
+			opts = arg2;
+			fn = arg3;
+		} else {
+			opts = arg2;
+			ctx = arg3;
+			fn = arg4;
+		}
+		const parentContext = (_ctx = ctx) !== null && _ctx !== void 0 ? _ctx : contextApi.active();
+		const span = this.startSpan(name, opts, parentContext);
+		const contextWithSpanSet = require_context_utils.setSpan(parentContext, span);
+		return contextApi.with(contextWithSpanSet, fn, void 0, span);
+	}
+};
+function isSpanContext(spanContext) {
+	return spanContext !== null && typeof spanContext === "object" && "spanId" in spanContext && typeof spanContext["spanId"] === "string" && "traceId" in spanContext && typeof spanContext["traceId"] === "string" && "traceFlags" in spanContext && typeof spanContext["traceFlags"] === "number";
+}
+//#endregion
+exports.NoopTracer = NoopTracer;
+
+//# sourceMappingURL=NoopTracer.cjs.map
+
+/***/ }),
+
+/***/ 83186:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_NoopTracer = __nccwpck_require__(1725);
+//#region src/trace/NoopTracerProvider.ts
+/**
+* An implementation of the {@link TracerProvider} which returns an impotent
+* Tracer for all calls to `getTracer`.
+*
+* All operations are no-op.
+*/
+var NoopTracerProvider = class {
+	getTracer(_name, _version, _options) {
+		return new require_NoopTracer.NoopTracer();
+	}
+};
+//#endregion
+exports.b = NoopTracerProvider;
+
+//# sourceMappingURL=NoopTracerProvider.cjs.map
+
+/***/ }),
+
+/***/ 33861:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+//#region src/trace/ProxyTracer.ts
+const NOOP_TRACER = new (__nccwpck_require__(1725).NoopTracer)();
+/**
+* Proxy tracer provided by the proxy tracer provider
+*
+* @since 1.0.0
+*/
+var ProxyTracer = class {
+	constructor(provider, name, version, options) {
+		this._provider = provider;
+		this.name = name;
+		this.version = version;
+		this.options = options;
+	}
+	startSpan(name, options, context) {
+		return this._getTracer().startSpan(name, options, context);
+	}
+	startActiveSpan(_name, _options, _context, _fn) {
+		const tracer = this._getTracer();
+		return Reflect.apply(tracer.startActiveSpan, tracer, arguments);
+	}
+	/**
+	* Try to get a tracer from the proxy tracer provider.
+	* If the proxy tracer provider has no delegate, return a noop tracer.
+	*/
+	_getTracer() {
+		if (this._delegate) return this._delegate;
+		const tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
+		if (!tracer) return NOOP_TRACER;
+		this._delegate = tracer;
+		return this._delegate;
+	}
+};
+//#endregion
+exports.ProxyTracer = ProxyTracer;
+
+//# sourceMappingURL=ProxyTracer.cjs.map
+
+/***/ }),
+
+/***/ 55930:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_ProxyTracer = __nccwpck_require__(33861);
+//#region src/trace/ProxyTracerProvider.ts
+const NOOP_TRACER_PROVIDER = new (__nccwpck_require__(83186)/* .NoopTracerProvider */ .b)();
+/**
+* Tracer provider which provides {@link ProxyTracer}s.
+*
+* Before a delegate is set, tracers provided are NoOp.
+*   When a delegate is set, traces are provided from the delegate.
+*   When a delegate is set after tracers have already been provided,
+*   all tracers already provided will use the provided delegate implementation.
+*
+* @deprecated This will be removed in the next major version.
+* @since 1.0.0
+*/
+var ProxyTracerProvider = class {
+	/**
+	* Get a {@link ProxyTracer}
+	*/
+	getTracer(name, version, options) {
+		var _this$getDelegateTrac;
+		return (_this$getDelegateTrac = this.getDelegateTracer(name, version, options)) !== null && _this$getDelegateTrac !== void 0 ? _this$getDelegateTrac : new require_ProxyTracer.ProxyTracer(this, name, version, options);
+	}
+	getDelegate() {
+		var _this$_delegate;
+		return (_this$_delegate = this._delegate) !== null && _this$_delegate !== void 0 ? _this$_delegate : NOOP_TRACER_PROVIDER;
+	}
+	/**
+	* Set the delegate tracer provider
+	*/
+	setDelegate(delegate) {
+		this._delegate = delegate;
+	}
+	getDelegateTracer(name, version, options) {
+		var _this$_delegate2;
+		return (_this$_delegate2 = this._delegate) === null || _this$_delegate2 === void 0 ? void 0 : _this$_delegate2.getTracer(name, version, options);
+	}
+};
+//#endregion
+exports.ProxyTracerProvider = ProxyTracerProvider;
+
+//# sourceMappingURL=ProxyTracerProvider.cjs.map
+
+/***/ }),
+
+/***/ 55346:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/trace/SamplingResult.ts
+/**
+* @deprecated use the one declared in @opentelemetry/sdk-trace instead.
+* A sampling decision that determines how a {@link Span} will be recorded
+* and collected.
+*
+* @since 1.0.0
+*/
+let SamplingDecision = /* @__PURE__ */ function(SamplingDecision) {
+	/**
+	* `Span.isRecording() === false`, span will not be recorded and all events
+	* and attributes will be dropped.
+	*/
+	SamplingDecision[SamplingDecision["NOT_RECORD"] = 0] = "NOT_RECORD";
+	/**
+	* `Span.isRecording() === true`, but `Sampled` flag in {@link TraceFlags}
+	* MUST NOT be set.
+	*/
+	SamplingDecision[SamplingDecision["RECORD"] = 1] = "RECORD";
+	/**
+	* `Span.isRecording() === true` AND `Sampled` flag in {@link TraceFlags}
+	* MUST be set.
+	*/
+	SamplingDecision[SamplingDecision["RECORD_AND_SAMPLED"] = 2] = "RECORD_AND_SAMPLED";
+	return SamplingDecision;
+}({});
+//#endregion
+exports.SamplingDecision = SamplingDecision;
+
+//# sourceMappingURL=SamplingResult.cjs.map
+
+/***/ }),
+
+/***/ 3779:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_context = __nccwpck_require__(83041);
+const require_context$1 = __nccwpck_require__(8352);
+const require_NonRecordingSpan = __nccwpck_require__(55744);
+//#region src/trace/context-utils.ts
+/**
+* span key
+*/
+const SPAN_KEY = require_context.createContextKey("OpenTelemetry Context Key SPAN");
+/**
+* Return the span if one exists
+*
+* @param context context to get span from
+*/
+function getSpan(context) {
+	return context.getValue(SPAN_KEY) || void 0;
+}
+/**
+* Gets the span from the current context, if one exists.
+*/
+function getActiveSpan() {
+	return getSpan(require_context$1.ContextAPI.getInstance().active());
+}
+/**
+* Set the span on a context
+*
+* @param context context to use as parent
+* @param span span to set active
+*/
+function setSpan(context, span) {
+	return context.setValue(SPAN_KEY, span);
+}
+/**
+* Remove current span stored in the context
+*
+* @param context context to delete span from
+*/
+function deleteSpan(context) {
+	return context.deleteValue(SPAN_KEY);
+}
+/**
+* Wrap span context in a NoopSpan and set as span in a new
+* context
+*
+* @param context context to set active span on
+* @param spanContext span context to be wrapped
+*/
+function setSpanContext(context, spanContext) {
+	return setSpan(context, new require_NonRecordingSpan.NonRecordingSpan(spanContext));
+}
+/**
+* Get the span context of the span if it exists.
+*
+* @param context context to get values from
+*/
+function getSpanContext(context) {
+	var _getSpan;
+	return (_getSpan = getSpan(context)) === null || _getSpan === void 0 ? void 0 : _getSpan.spanContext();
+}
+//#endregion
+exports.deleteSpan = deleteSpan;
+exports.getActiveSpan = getActiveSpan;
+exports.getSpan = getSpan;
+exports.getSpanContext = getSpanContext;
+exports.setSpan = setSpan;
+exports.setSpanContext = setSpanContext;
+
+//# sourceMappingURL=context-utils.cjs.map
+
+/***/ }),
+
+/***/ 48457:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_tracestate_validators = __nccwpck_require__(38534);
+//#region src/trace/internal/tracestate-impl.ts
+const MAX_TRACE_STATE_ITEMS = 32;
+const MAX_TRACE_STATE_LEN = 512;
+const LIST_MEMBERS_SEPARATOR = ",";
+const LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
+/**
+* TraceState must be a class and not a simple object type because of the spec
+* requirement (https://www.w3.org/TR/trace-context/#tracestate-field).
+*
+* Here is the list of allowed mutations:
+* - New key-value pair should be added into the beginning of the list
+* - The value of any key can be updated. Modified keys MUST be moved to the
+* beginning of the list.
+*
+* @deprecated Use TraceState from "@opentelemetry/core". This will be removed in the next major version.
+*/
+var TraceStateImpl = class TraceStateImpl {
+	constructor(rawTraceState) {
+		this._internalState = /* @__PURE__ */ new Map();
+		if (rawTraceState) this._parse(rawTraceState);
+	}
+	set(key, value) {
+		const currValue = this._internalState.get(key);
+		let newLength = this.serialize().length;
+		if (typeof currValue === "string") newLength += value.length - currValue.length;
+		else {
+			if (this._internalState.size >= MAX_TRACE_STATE_ITEMS) return this;
+			newLength += key.length + value.length + (this._internalState.size > 0 ? 2 : 1);
+		}
+		if (newLength > MAX_TRACE_STATE_LEN) return this;
+		const traceState = this._clone();
+		if (traceState._internalState.has(key)) traceState._internalState.delete(key);
+		traceState._internalState.set(key, value);
+		return traceState;
+	}
+	unset(key) {
+		const traceState = this._clone();
+		traceState._internalState.delete(key);
+		return traceState;
+	}
+	get(key) {
+		return this._internalState.get(key);
+	}
+	serialize() {
+		return Array.from(this._internalState.keys()).reduceRight((agg, key) => {
+			agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + this.get(key));
+			return agg;
+		}, []).join(LIST_MEMBERS_SEPARATOR);
+	}
+	_parse(rawTraceState) {
+		if (rawTraceState.length > MAX_TRACE_STATE_LEN) return;
+		this._internalState = rawTraceState.split(LIST_MEMBERS_SEPARATOR).reduceRight((agg, part) => {
+			const listMember = part.trim();
+			const i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+			if (i !== -1) {
+				const key = listMember.slice(0, i);
+				const value = listMember.slice(i + 1, part.length);
+				if (require_tracestate_validators.validateKey(key) && require_tracestate_validators.validateValue(value)) agg.set(key, value);
+			}
+			return agg;
+		}, /* @__PURE__ */ new Map());
+		if (this._internalState.size > MAX_TRACE_STATE_ITEMS) this._internalState = new Map(Array.from(this._internalState.entries()).reverse().slice(0, MAX_TRACE_STATE_ITEMS));
+	}
+	_keys() {
+		return Array.from(this._internalState.keys()).reverse();
+	}
+	_clone() {
+		const traceState = new TraceStateImpl();
+		traceState._internalState = new Map(this._internalState);
+		return traceState;
+	}
+};
+//#endregion
+exports.TraceStateImpl = TraceStateImpl;
+
+//# sourceMappingURL=tracestate-impl.cjs.map
+
+/***/ }),
+
+/***/ 38534:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/trace/internal/tracestate-validators.ts
+const VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
+const VALID_KEY_REGEX = new RegExp(`^(?:${`[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`}|${`[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`})$`);
+const VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+const INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+/**
+* Key is opaque string up to 256 characters printable. It MUST begin with a
+* lowercase letter, and can only contain lowercase letters a-z, digits 0-9,
+* underscores _, dashes -, asterisks *, and forward slashes /.
+* For multi-tenant vendor scenarios, an at sign (@) can be used to prefix the
+* vendor name. Vendors SHOULD set the tenant ID at the beginning of the key.
+* see https://www.w3.org/TR/trace-context/#key
+*/
+function validateKey(key) {
+	return VALID_KEY_REGEX.test(key);
+}
+/**
+* Value is opaque string up to 256 characters printable ASCII RFC0020
+* characters (i.e., the range 0x20 to 0x7E) except comma , and =.
+*/
+function validateValue(value) {
+	return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
+}
+//#endregion
+exports.validateKey = validateKey;
+exports.validateValue = validateValue;
+
+//# sourceMappingURL=tracestate-validators.cjs.map
+
+/***/ }),
+
+/***/ 2219:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+const require_tracestate_impl = __nccwpck_require__(48457);
+//#region src/trace/internal/utils.ts
+/**
+* @deprecated Use TraceState from "@opentelemetry/core". This will be removed in the next major version.
+* @since 1.1.0
+*/
+function createTraceState(rawTraceState) {
+	return new require_tracestate_impl.TraceStateImpl(rawTraceState);
+}
+//#endregion
+exports.createTraceState = createTraceState;
+
+//# sourceMappingURL=utils.cjs.map
+
+/***/ }),
+
+/***/ 63552:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+__nccwpck_require__(43245);
+//#region src/trace/invalid-span-constants.ts
+/**
+* @since 1.0.0
+*/
+const INVALID_SPANID = "0000000000000000";
+/**
+* @since 1.0.0
+*/
+const INVALID_TRACEID = "00000000000000000000000000000000";
+/**
+* @since 1.0.0
+*/
+const INVALID_SPAN_CONTEXT = {
+	traceId: INVALID_TRACEID,
+	spanId: INVALID_SPANID,
+	traceFlags: 0
+};
+//#endregion
+exports.INVALID_SPANID = INVALID_SPANID;
+exports.INVALID_SPAN_CONTEXT = INVALID_SPAN_CONTEXT;
+exports.INVALID_TRACEID = INVALID_TRACEID;
+
+//# sourceMappingURL=invalid-span-constants.cjs.map
+
+/***/ }),
+
+/***/ 97483:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/trace/span_kind.ts
+/**
+* @since 1.0.0
+*/
+let SpanKind = /* @__PURE__ */ function(SpanKind) {
+	/** Default value. Indicates that the span is used internally. */
+	SpanKind[SpanKind["INTERNAL"] = 0] = "INTERNAL";
+	/**
+	* Indicates that the span covers server-side handling of an RPC or other
+	* remote request.
+	*/
+	SpanKind[SpanKind["SERVER"] = 1] = "SERVER";
+	/**
+	* Indicates that the span covers the client-side wrapper around an RPC or
+	* other remote request.
+	*/
+	SpanKind[SpanKind["CLIENT"] = 2] = "CLIENT";
+	/**
+	* Indicates that the span describes producer sending a message to a
+	* broker. Unlike client and server, there is no direct critical path latency
+	* relationship between producer and consumer spans.
+	*/
+	SpanKind[SpanKind["PRODUCER"] = 3] = "PRODUCER";
+	/**
+	* Indicates that the span describes consumer receiving a message from a
+	* broker. Unlike client and server, there is no direct critical path latency
+	* relationship between producer and consumer spans.
+	*/
+	SpanKind[SpanKind["CONSUMER"] = 4] = "CONSUMER";
+	return SpanKind;
+}({});
+//#endregion
+exports.SpanKind = SpanKind;
+
+//# sourceMappingURL=span_kind.cjs.map
+
+/***/ }),
+
+/***/ 83723:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+__nccwpck_require__(63552);
+const require_NonRecordingSpan = __nccwpck_require__(55744);
+//#region src/trace/spancontext-utils.ts
+const isHex = new Uint8Array([
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1
+]);
+function isValidHex(id, length) {
+	if (typeof id !== "string" || id.length !== length) return false;
+	let r = 0;
+	for (let i = 0; i < id.length; i += 4) r += (isHex[id.charCodeAt(i)] | 0) + (isHex[id.charCodeAt(i + 1)] | 0) + (isHex[id.charCodeAt(i + 2)] | 0) + (isHex[id.charCodeAt(i + 3)] | 0);
+	return r === length;
+}
+/**
+* @since 1.0.0
+*/
+function isValidTraceId(traceId) {
+	return isValidHex(traceId, 32) && traceId !== "00000000000000000000000000000000";
+}
+/**
+* @since 1.0.0
+*/
+function isValidSpanId(spanId) {
+	return isValidHex(spanId, 16) && spanId !== "0000000000000000";
+}
+/**
+* Returns true if this {@link SpanContext} is valid.
+* @return true if this {@link SpanContext} is valid.
+*
+* @since 1.0.0
+*/
+function isSpanContextValid(spanContext) {
+	return isValidTraceId(spanContext.traceId) && isValidSpanId(spanContext.spanId);
+}
+/**
+* Wrap the given {@link SpanContext} in a new non-recording {@link Span}
+*
+* @param spanContext span context to be wrapped
+* @returns a new non-recording {@link Span} with the provided context
+*/
+function wrapSpanContext(spanContext) {
+	return new require_NonRecordingSpan.NonRecordingSpan(spanContext);
+}
+//#endregion
+exports.isSpanContextValid = isSpanContextValid;
+exports.isValidSpanId = isValidSpanId;
+exports.isValidTraceId = isValidTraceId;
+exports.wrapSpanContext = wrapSpanContext;
+
+//# sourceMappingURL=spancontext-utils.cjs.map
+
+/***/ }),
+
+/***/ 17632:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/trace/status.ts
+/**
+* An enumeration of status codes.
+*
+* @since 1.0.0
+*/
+let SpanStatusCode = /* @__PURE__ */ function(SpanStatusCode) {
+	/**
+	* The default status.
+	*/
+	SpanStatusCode[SpanStatusCode["UNSET"] = 0] = "UNSET";
+	/**
+	* The operation has been validated by an Application developer or
+	* Operator to have completed successfully.
+	*/
+	SpanStatusCode[SpanStatusCode["OK"] = 1] = "OK";
+	/**
+	* The operation contains an error.
+	*/
+	SpanStatusCode[SpanStatusCode["ERROR"] = 2] = "ERROR";
+	return SpanStatusCode;
+}({});
+//#endregion
+exports.SpanStatusCode = SpanStatusCode;
+
+//# sourceMappingURL=status.cjs.map
+
+/***/ }),
+
+/***/ 43245:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/trace/trace_flags.ts
+/**
+* @since 1.0.0
+*/
+let TraceFlags = /* @__PURE__ */ function(TraceFlags) {
+	/** Represents no flag set. */
+	TraceFlags[TraceFlags["NONE"] = 0] = "NONE";
+	/** Bit to represent whether trace is sampled in trace flags. */
+	TraceFlags[TraceFlags["SAMPLED"] = 1] = "SAMPLED";
+	return TraceFlags;
+}({});
+//#endregion
+exports.TraceFlags = TraceFlags;
+
+//# sourceMappingURL=trace_flags.cjs.map
+
+/***/ }),
+
+/***/ 39128:
+/***/ ((__unused_webpack_module, exports) => {
+
+//#region src/version.ts
+const VERSION = "1.10.0";
+//#endregion
+exports.VERSION = VERSION;
+
+//# sourceMappingURL=version.cjs.map
 
 /***/ }),
 

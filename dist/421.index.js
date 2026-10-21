@@ -14,7 +14,7 @@ exports.getMachineId = void 0;
  * SPDX-License-Identifier: Apache-2.0
  */
 const fs_1 = __webpack_require__(79896);
-const api_1 = __webpack_require__(63914);
+const api_1 = __webpack_require__(91408);
 async function getMachineId() {
     const paths = ['/etc/machine-id', '/var/lib/dbus/machine-id'];
     for (const path of paths) {
