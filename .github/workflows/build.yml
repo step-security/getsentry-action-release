@@ -45,7 +45,7 @@ jobs:
   test-mock-release:
     strategy:
       matrix:
-        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "ubuntu-24.04-arm", "windows-latest", "macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     name: Mock a release
     permissions:
@@ -70,7 +70,7 @@ jobs:
   test-mock-release-working-directory:
     strategy:
       matrix:
-        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "ubuntu-24.04-arm", "windows-latest", "macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     name: Mock a release in a different working directory
     permissions:
@@ -104,7 +104,7 @@ jobs:
   test-node-version-preserved:
     strategy:
       matrix:
-        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        os: ${{ github.actor == 'dependabot[bot]' && fromJson('["ubuntu-latest"]') || fromJson('["ubuntu-latest", "ubuntu-24.04-arm", "windows-latest", "macos-latest"]') }}
         node-version: ['20.x', '22.x', '24.x']
     runs-on: ${{ matrix.os }}
     name: Test Node version preserved on ${{ matrix.os }} with Node ${{ matrix.node-version }}

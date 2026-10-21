@@ -1,6 +1,6 @@
 {
   "name": "action-release",
-  "version": "3.7.0",
+  "version": "3.7.1",
   "private": true,
   "description": "GitHub Action for creating a release on Sentry",
   "main": "dist/index.js",
@@ -25,9 +25,9 @@
   "author": "step-security",
   "license": "Apache-2.0",
   "dependencies": {
-    "@actions/core": "^2.0.1",
+    "@actions/core": "^2.0.3",
     "@sentry/cli": "^2.58.6",
-    "@sentry/node": "^8.54.0"
+    "@sentry/node": "^10.71.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.6",
