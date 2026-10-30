@@ -1,6 +1,10 @@
 # The multi stage set up *saves* up image size by avoiding the dev dependencies
 # required to produce dist/
+<<<<<<< c5a1585c12247dacb9d74c0327aff0019f697d5b
 FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
+=======
+FROM node:24-alpine AS builder
+>>>>>>> 09902bb722c464003a68884724c8d5ea79fcd52b
 WORKDIR /app
 # This layer will invalidate upon new dependencies
 COPY package.json yarn.lock ./
@@ -12,8 +16,13 @@ RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
 COPY . .
 RUN yarn build
 
+<<<<<<< c5a1585c12247dacb9d74c0327aff0019f697d5b
 FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS app
 COPY package.json yarn.lock /getsentry-action-release/
+=======
+FROM node:24-alpine AS app
+COPY package.json yarn.lock /action-release/
+>>>>>>> 09902bb722c464003a68884724c8d5ea79fcd52b
 # On the builder image, we install both types of dependencies rather than
 # just the production ones. This generates /getsentry-action-release/node_modules
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
