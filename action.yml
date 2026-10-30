@@ -212,7 +212,11 @@ runs:
         INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
         INPUT_DISABLE_TELEMETRY: ${{ inputs.disable_telemetry }}
         INPUT_DISABLE_SAFE_DIRECTORY: ${{ inputs.disable_safe_directory }}
+<<<<<<< c5a1585c12247dacb9d74c0327aff0019f697d5b
       uses: docker://ghcr.io/step-security/getsentry-action-release:v3.7.0@sha256:5ad19822f3204eb9cd69c65574e60df5c5f46c28361f4d16d265e73def2a380d # v3.7.0
+=======
+      uses: docker://ghcr.io/getsentry/action-release-image:3.7.2
+>>>>>>> 09902bb722c464003a68884724c8d5ea79fcd52b
 
     # For actions running on macos or windows runners, we use a composite
     # action approach which allows us to install the arch specific sentry-cli
@@ -241,7 +245,7 @@ runs:
         # setup-node doesn't allow absolute paths, so we can't
         # just use `github.action_path` to read this out from the `package.json`
         # any changes to the runtime need to be reflected here
-        node-version: 24.14.1
+        node-version: 24.22.1
         package-manager-cache: false
 
     - name: Install Sentry CLI v2

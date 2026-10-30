@@ -1,0 +1,12 @@
+{
+  "$comment": "Managed automatically when syncing with upstream. Do not edit by hand.",
+  "schema_version": 1,
+  "onboarding_type": "copied",
+  "action_type": "composite",
+  "upstream": {
+    "repository": "getsentry/action-release",
+    "synced_tag": "v3.7.2",
+    "synced_commit": "e6703d0b00208e0b3687ba660d18ab5af7892821",
+    "archived": false
+  }
+}
