@@ -1,6 +1,6 @@
 {
   "name": "action-release",
-  "version": "3.7.1",
+  "version": "3.7.2",
   "private": true,
   "description": "GitHub Action for creating a release on Sentry",
   "main": "dist/index.js",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.6",
     "@types/node": "^24.0.0",
-    "@typescript-eslint/parser": "^6.9.0",
+    "@typescript-eslint/parser": "^7.0.0",
     "@vercel/ncc": "^0.38.4",
     "eslint": "^8.52.0",
     "eslint-plugin-github": "^4.10.1",
@@ -44,7 +44,7 @@
     "typescript": "^5.2.2"
   },
   "volta": {
-    "node": "24.14.1",
+    "node": "24.22.1",
     "yarn": "1.22.4"
   }
 }
